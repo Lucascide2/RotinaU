@@ -346,23 +346,51 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
 
       {!sorted.length && <Card><p className="text-sm text-muted-foreground">Nenhum bloco coube na sua disponibilidade. Ajuste os horários ou a duração das sessões.</p></Card>}
 
-      {days.map((d) => (
-        <section key={d}>
-          <h2 className="mb-1.5 text-xs font-extrabold uppercase tracking-wider text-secondary-foreground">
-            {DAY_NAMES[d]!.split("-")[0]} <span className="font-semibold text-muted-foreground">· {fmtDate(dateOfDay(state.weekStart, d)).split(", ")[1]}</span>
-          </h2>
-          <div className="divide-y rounded-xl border bg-card shadow-sm">
-            {sorted.filter((s) => s.day === d).map((s) => (
-              <SessionRow key={s.id} s={s} state={state} now={now} name={subj(s.subjectId)} open={open === s.id}
-                onToggle={() => setOpen(open === s.id ? null : s.id)}
-                onDone={() => { setSession(s.id, { status: "done", completedAt: new Date().toISOString() }); setOpen(null); }}
-                onMiss={() => { setSession(s.id, { status: "missed", completedAt: undefined }); setOpen(null); setReorg(s.id); }}
-                onUndo={() => { setSession(s.id, { status: "pending", completedAt: undefined }); setOpen(null); }}
-                onReorg={() => { setReorg(s.id); setOpen(null); }} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {windowDays.map((d) => {
+        const list = sorted.filter((s) => s.day === d);
+        if (!list.length) return null;
+        // insere pausas entre sessões em tempo consecutivo (mesmo dia, fim == início)
+        const items: (Session | { brk: number })[] = [];
+        list.forEach((s, i) => {
+          items.push(s);
+          const next = list[i + 1];
+          if (next && toMin(next.start) - toMin(s.end) === 0) {
+            const len = toMin(s.end) - toMin(s.start);
+            const brk = len === 30 ? 5 : len === 45 ? 7 : len === 60 ? 10 : Math.max(5, Math.round(len / 6 / 5) * 5);
+            items.push({ brk });
+          }
+        });
+        return (
+          <section key={d}>
+            <h2 className="mb-1.5 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-secondary-foreground">
+              {d === todayIdx ? "Hoje" : DAY_NAMES[d]!.split("-")[0]}
+              <span className="font-semibold text-muted-foreground">· {fmtDate(dateOfDay(state.weekStart, d)).split(", ")[1]}</span>
+              {list.every((s) => s.status === "done") && <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] text-success normal-case">✓ tudo concluído</span>}
+            </h2>
+            <div className="divide-y rounded-xl border bg-card shadow-sm">
+              {items.map((it) =>
+                "brk" in it ? (
+                  <div key={`brk-${it.brk}-${list.length}`} className="flex items-center gap-2 bg-muted/50 px-4 py-1.5">
+                    <span className="flex-1 border-t border-dashed border-input" />
+                    <span className="text-[11px] font-semibold text-muted-foreground">☕ Pausa de {it.brk} min</span>
+                    <span className="flex-1 border-t border-dashed border-input" />
+                  </div>
+                ) : (
+                  <SessionRow key={it.id} s={it} state={state} now={now} name={subj(it.subjectId)} open={open === it.id}
+                    onToggle={() => setOpen(open === it.id ? null : it.id)}
+                    onDone={() => { setSession(it.id, { status: "done", completedAt: new Date().toISOString() }); setOpen(null); }}
+                    onMiss={() => { setSession(it.id, { status: "missed", completedAt: undefined }); setOpen(null); setReorg(it.id); }}
+                    onUndo={() => { setSession(it.id, { status: "pending", completedAt: undefined }); setOpen(null); }}
+                    onReorg={() => { setReorg(it.id); setOpen(null); }} />
+                ),
+              )}
+            </div>
+          </section>
+        );
+      })}
+      {!days.length && sorted.length > 0 && (
+        <Card><p className="text-sm text-muted-foreground">Nenhuma sessão neste período. Use o calendário para ver outros dias da semana.</p></Card>
+      )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <Legend cls="bg-success" label="Concluída no horário" />
