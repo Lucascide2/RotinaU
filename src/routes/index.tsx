@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
-  dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, findFreeSlot, generate,
+  dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, generate,
   isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid, weekIndexOf,
 } from "@/lib/rotina";
+import { calendarOffsets } from "@/lib/calendar";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -221,7 +222,6 @@ function Subjects({ state, update }: { state: State; update: (p: Partial<State>)
 
 function Routine({ state, update, now }: { state: State; update: (p: Partial<State>) => void; now: Date }) {
   const [open, setOpen] = useState<string | null>(null);
-  const [reorg, setReorg] = useState<string | null>(null);
   const [focusOff, setFocusOff] = useState(0); // dia selecionado, relativo a hoje
   const [calOpen, setCalOpen] = useState(false);
   const [calOff, setCalOff] = useState(0); // início da janela do calendário
@@ -261,9 +261,6 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
     update({ duration: to, sessions: [...kept, ...fresh] });
   };
 
-  const reorgTarget = reorg ? state.sessions.find((s) => s.id === reorg) : null;
-  const reorgSlot = reorgTarget ? findFreeSlot(state, reorgTarget, now) : null;
-
   return (
     <Screen title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
       subtitle={`${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[0]!))} a ${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[focusOffsets.length - 1]!))} · toque no calendário para mudar o dia`}
@@ -272,19 +269,21 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
           <button onClick={() => setCalOpen(!calOpen)} aria-label="Abrir calendário"
             className={`grid h-10 w-10 place-items-center rounded-xl border text-lg transition ${calOpen ? "border-primary bg-primary-soft" : "bg-card"}`}>📅</button>
           {calOpen && (
-            <div className="absolute right-0 z-20 mt-2 w-[300px] rounded-xl border bg-card p-3 shadow-lg">
+            <div role="dialog" aria-label="Calendário de sessões" className="absolute right-0 z-20 mt-2 w-[344px] max-w-[calc(100vw-40px)] rounded-xl border bg-card p-3 shadow-lg">
               <div className="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Escolha o dia</div>
+                  <div className="text-[10px] text-muted-foreground">{fmtDay(dayOffsetDate(state.weekStart, now, Math.min(calOff, 0)))} a {fmtDay(dayOffsetDate(state.weekStart, now, calOff < 0 ? 0 : 7))}</div>
+                </div>
+                <div className="flex gap-1">
                 <button onClick={() => setCalOff(-7)} disabled={calOff < 0} aria-label="Ver os 7 dias anteriores"
                   className="grid h-7 w-7 place-items-center rounded-lg border text-sm font-bold transition hover:bg-muted disabled:opacity-30">←</button>
-                <div className="text-center">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Escolha o dia</div>
-                  <div className="text-[10px] text-muted-foreground">{fmtDay(dayOffsetDate(state.weekStart, now, Math.min(calOff, 0)))} a {fmtDay(dayOffsetDate(state.weekStart, now, calOff < 0 ? 0 : 6))}</div>
-                </div>
-                <button onClick={() => setCalOff((v) => Math.min(0, v + 7))} disabled={calOff >= 0} aria-label="Voltar aos dias à frente"
+                <button onClick={() => setCalOff(0)} disabled={calOff >= 0} aria-label="Voltar aos dias à frente"
                   className="grid h-7 w-7 place-items-center rounded-lg border text-sm font-bold transition hover:bg-muted disabled:opacity-30">→</button>
+                </div>
               </div>
-              <div className={`grid gap-1 ${calOff < 0 ? "grid-cols-4" : "grid-cols-7"}`}>
-                {(calOff < 0 ? Array.from({ length: 8 }, (_, i) => -7 + i) : Array.from({ length: 7 }, (_, i) => i)).map((o) => {
+              <div className="grid grid-cols-8 gap-1">
+                {calendarOffsets(calOff < 0).map((o) => {
                   const date = dayOffsetDate(state.weekStart, now, o);
                   const d = weekIndexOf(date);
                   const list = sorted.filter((s) => s.day === d);
@@ -292,7 +291,7 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
                   const hasMissed = list.some((s) => isOverdue(state.weekStart, s, now));
                   const selected = o === selOff;
                   return (
-                    <button key={o} onClick={() => { setSelOff(o); setFocusOff(weekIndexOf(date) - todayIdx); setCalOpen(false); }}
+                    <button key={o} aria-label={fmtDate(date)} aria-current={o === 0 ? "date" : undefined} aria-pressed={selected} onClick={() => { setSelOff(o); setFocusOff(weekIndexOf(date) - todayIdx); setCalOpen(false); }}
                       className={`flex flex-col items-center rounded-lg py-1.5 text-[10px] font-bold transition
                         ${selected ? "bg-primary text-primary-foreground" : allDone ? "bg-success-soft text-success" : hasMissed ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>
                       <span>{DAY_SHORT[d]}</span>
@@ -342,22 +341,6 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
         </Card>
       )}
 
-      {reorgTarget && (
-        <Card className="border-warning/40 bg-warning-soft">
-          <div className="text-sm font-bold">⚠️ Você não realizou o estudo de {subj(reorgTarget.subjectId)} de {DAY_NAMES[reorgTarget.day]!.toLowerCase()}.</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {reorgSlot ? `Sugestão: transferir esse estudo para ${DAY_NAMES[reorgSlot.day]!.toLowerCase()} às ${reorgSlot.start}?` : "Não há horários livres nesta semana. Tente aumentar sua disponibilidade."}
-          </p>
-          <div className="mt-3 flex gap-2">
-            {reorgSlot && (
-              <button onClick={() => { setSession(reorgTarget.id, { ...reorgSlot, status: "pending", rescheduledFrom: `${DAY_SHORT[reorgTarget.day]} ${reorgTarget.start}` }); setReorg(null); }}
-                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">Reorganizar</button>
-            )}
-            <button onClick={() => setReorg(null)} className="rounded-lg border bg-card px-3 py-1.5 text-xs font-bold">Manter como está</button>
-          </div>
-        </Card>
-      )}
-
       {!sorted.length && <Card><p className="text-sm text-muted-foreground">Nenhum bloco coube na sua disponibilidade. Ajuste os horários ou a duração das sessões.</p></Card>}
 
       {windowDays.map((d) => {
@@ -384,7 +367,7 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
             <div className="divide-y rounded-xl border bg-card shadow-sm">
               {items.map((it, idx) =>
                 "brk" in it ? (
-                  <div key={`brk-${idx}`} className="flex items-center gap-2 bg-early-soft px-4 py-1.5">
+                  <div key={`brk-${idx}`} className="flex items-center gap-2 border-l-4 border-l-break-accent bg-early-soft px-4 py-1.5">
                     <span className="flex-1 border-t border-dashed border-early/30" />
                     <span className="text-[11px] font-semibold text-early">☕ Pausa de {it.brk} min</span>
                     <span className="flex-1 border-t border-dashed border-early/30" />
@@ -393,9 +376,7 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
                   <SessionRow key={it.id} s={it} state={state} now={now} name={subj(it.subjectId)} open={open === it.id}
                     onToggle={() => setOpen(open === it.id ? null : it.id)}
                     onDone={() => { setSession(it.id, { status: "done", completedAt: new Date().toISOString() }); setOpen(null); }}
-                    onMiss={() => { setSession(it.id, { status: "missed", completedAt: undefined }); setOpen(null); setReorg(it.id); }}
-                    onUndo={() => { setSession(it.id, { status: "pending", completedAt: undefined }); setOpen(null); }}
-                    onReorg={() => { setReorg(it.id); setOpen(null); }} />
+                    onUndo={() => { setSession(it.id, { status: "pending", completedAt: undefined }); setOpen(null); }} />
                 ),
               )}
             </div>
@@ -433,9 +414,9 @@ function Stat({ value, label, ring, flame, warn }: { value: number; label: strin
   );
 }
 
-function SessionRow({ s, state, now, name, open, onToggle, onDone, onMiss, onUndo, onReorg }: {
+function SessionRow({ s, state, now, name, open, onToggle, onDone, onUndo }: {
   s: Session; state: State; now: Date; name: string; open: boolean;
-  onToggle: () => void; onDone: () => void; onMiss: () => void; onUndo: () => void; onReorg: () => void;
+  onToggle: () => void; onDone: () => void; onUndo: () => void;
 }) {
   const early = isEarly(state.weekStart, s);
   const overdue = isOverdue(state.weekStart, s, now);
@@ -472,8 +453,6 @@ function SessionRow({ s, state, now, name, open, onToggle, onDone, onMiss, onUnd
               {future ? "Concluir antecipadamente" : "Marcar como concluída"}
             </button>
           )}
-          {s.status === "pending" && !future && <button onClick={onMiss} className="rounded-lg border bg-card px-3 py-1.5 text-xs font-bold">Não consegui realizar</button>}
-          {overdue && <button onClick={onReorg} className="rounded-lg border bg-card px-3 py-1.5 text-xs font-bold">Reorganizar</button>}
           {s.status !== "pending" && <button onClick={onUndo} className="rounded-lg border bg-card px-3 py-1.5 text-xs font-bold">Desfazer</button>}
           {future && s.status !== "done" && <span className="w-full text-[11px] text-muted-foreground">Planejada para {planned}. Concluir agora registra como antecipada, sem gerar atraso.</span>}
         </div>

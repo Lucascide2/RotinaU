@@ -38,6 +38,7 @@
   --color-success-soft: var(--success-soft);
   --color-early: var(--early);
   --color-early-soft: var(--early-soft);
+  --color-break-accent: var(--break-accent);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-review: var(--review);
@@ -75,6 +76,7 @@
   --success-soft: oklch(0.95 0.04 160);
   --early: oklch(0.55 0.14 220);
   --early-soft: oklch(0.95 0.035 220);
+  --break-accent: oklch(0.38 0.13 250);
   --warning: oklch(0.6 0.15 55);
   --warning-soft: oklch(0.96 0.04 75);
   --review: oklch(0.5 0.16 320);
