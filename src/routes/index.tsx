@@ -225,6 +225,7 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const [focusOff, setFocusOff] = useState(0); // dia selecionado, relativo a hoje
   const [calOpen, setCalOpen] = useState(false);
   const [calOff, setCalOff] = useState(0); // início da janela do calendário
+  const [selOff, setSelOff] = useState(0); // dia marcado como selecionado
   const st = useMemo(() => stats(state, now), [state, now]);
   const subj = (id: string) => state.subjects.find((s) => s.id === id)?.name ?? "Disciplina removida";
   const setSession = (id: string, p: Partial<Session>) =>
@@ -273,25 +274,25 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
           {calOpen && (
             <div className="absolute right-0 z-20 mt-2 w-[300px] rounded-xl border bg-card p-3 shadow-lg">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <button onClick={() => setCalOff((v) => Math.max(-7, v - 7))} disabled={calOff <= -7} aria-label="Ver os 7 dias anteriores"
+                <button onClick={() => setCalOff(-7)} disabled={calOff < 0} aria-label="Ver os 7 dias anteriores"
                   className="grid h-7 w-7 place-items-center rounded-lg border text-sm font-bold transition hover:bg-muted disabled:opacity-30">←</button>
                 <div className="text-center">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Escolha o dia</div>
-                  <div className="text-[10px] text-muted-foreground">{fmtDay(dayOffsetDate(state.weekStart, now, calOff))} a {fmtDay(dayOffsetDate(state.weekStart, now, calOff + 6))}</div>
+                  <div className="text-[10px] text-muted-foreground">{fmtDay(dayOffsetDate(state.weekStart, now, Math.min(calOff, 0)))} a {fmtDay(dayOffsetDate(state.weekStart, now, calOff < 0 ? 0 : 6))}</div>
                 </div>
                 <button onClick={() => setCalOff((v) => Math.min(0, v + 7))} disabled={calOff >= 0} aria-label="Voltar aos dias à frente"
                   className="grid h-7 w-7 place-items-center rounded-lg border text-sm font-bold transition hover:bg-muted disabled:opacity-30">→</button>
               </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 7 }, (_, i) => calOff + i).map((o) => {
-                  const d = weekIndexOf(dayOffsetDate(state.weekStart, now, o));
+              <div className={`grid gap-1 ${calOff < 0 ? "grid-cols-4" : "grid-cols-7"}`}>
+                {(calOff < 0 ? Array.from({ length: 8 }, (_, i) => -7 + i) : Array.from({ length: 7 }, (_, i) => i)).map((o) => {
                   const date = dayOffsetDate(state.weekStart, now, o);
+                  const d = weekIndexOf(date);
                   const list = sorted.filter((s) => s.day === d);
                   const allDone = list.length > 0 && list.every((s) => s.status === "done");
                   const hasMissed = list.some((s) => isOverdue(state.weekStart, s, now));
-                  const selected = o === focusOff;
+                  const selected = o === selOff;
                   return (
-                    <button key={o} onClick={() => { setFocusOff(o); setCalOpen(false); }}
+                    <button key={o} onClick={() => { setSelOff(o); setFocusOff(weekIndexOf(date) - todayIdx); setCalOpen(false); }}
                       className={`flex flex-col items-center rounded-lg py-1.5 text-[10px] font-bold transition
                         ${selected ? "bg-primary text-primary-foreground" : allDone ? "bg-success-soft text-success" : hasMissed ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>
                       <span>{DAY_SHORT[d]}</span>
