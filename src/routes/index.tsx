@@ -263,6 +263,8 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const reorgTarget = reorg ? state.sessions.find((s) => s.id === reorg) : null;
   const reorgSlot = reorgTarget ? findFreeSlot(state, reorgTarget, now) : null;
 
+  const dbg = JSON.stringify({ focusOff, calOff, todayIdx, focusOffsets, windowDays, sorted: sorted.map((s) => `${s.id}:${s.day}`), weekStart: state.weekStart });
+
   return (
     <Screen title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
       subtitle={`${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[0]!))} a ${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[focusOffsets.length - 1]!))} · use o calendário para mudar o dia`}
