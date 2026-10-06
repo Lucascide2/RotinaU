@@ -48,6 +48,12 @@ export function plannedEnd(weekStart: string, s: { day: number; end: string }) {
 }
 export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 export const fmtDate = (d: Date) => `${DAY_SHORT[(d.getDay() + 6) % 7]}, ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+export const fmtDay = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+export const todayIdxOf = (now: Date) => (now.getDay() + 6) % 7;
+/** Data de um dia relativo a hoje (0 = hoje, -1 = ontem, 6 = daqui a 6 dias). */
+export function dayOffsetDate(weekStart: string, now: Date, offset: number) {
+  const d = dateOfDay(weekStart, todayIdxOf(now)); d.setDate(d.getDate() + offset); return d;
+}
 
 export function isEarly(weekStart: string, s: Session) {
   return s.status === "done" && !!s.completedAt && new Date(s.completedAt) < plannedAt(weekStart, s);

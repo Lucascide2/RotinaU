@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
-  dateOfDay, defaultState, fmtDate, findFreeSlot, generate, isEarly, isOverdue,
-  mondayOf, plannedAt, stats, toMin, uid,
+  dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, findFreeSlot, generate,
+  isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid,
 } from "@/lib/rotina";
 
 export const Route = createFileRoute("/")({
@@ -222,15 +222,17 @@ function Subjects({ state, update }: { state: State; update: (p: Partial<State>)
 function Routine({ state, update, now }: { state: State; update: (p: Partial<State>) => void; now: Date }) {
   const [open, setOpen] = useState<string | null>(null);
   const [reorg, setReorg] = useState<string | null>(null);
-  const [focus, setFocus] = useState<number | null>(null);
+  const [focusOff, setFocusOff] = useState(0); // dia selecionado, relativo a hoje
   const [calOpen, setCalOpen] = useState(false);
+  const [calOff, setCalOff] = useState(0); // início da janela do calendário
   const st = useMemo(() => stats(state, now), [state, now]);
   const subj = (id: string) => state.subjects.find((s) => s.id === id)?.name ?? "Disciplina removida";
   const setSession = (id: string, p: Partial<Session>) =>
     update({ sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...p } : s)) });
 
-  const todayIdx = (now.getDay() + 6) % 7;
-  const focusDay = focus ?? todayIdx;
+  const todayIdx = todayIdxOf(now);
+  const focusDate = dayOffsetDate(state.weekStart, now, focusOff);
+  const focusDay = (focusDate.getDay() + 6) % 7;
   const sorted = [...state.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
   // janela de 3 dias a partir do dia focado
   const windowDays = [focusDay, focusDay + 1, focusDay + 2].filter((d) => d < 7);
