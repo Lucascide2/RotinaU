@@ -10,7 +10,7 @@ export type Session = {
   subjectId: string;
   review: boolean;
   status: Status;
-  completedAt?: string; // ISO
+  completedAt?: string | undefined; // ISO
   rescheduledFrom?: string; // descrição
 };
 export type State = {
@@ -29,7 +29,7 @@ export const PRIORITY_WEIGHT: Record<Priority, number> = { alta: 3, media: 2, ba
 export const PRIORITY_LABEL: Record<Priority, string> = { alta: "Alta", media: "Média", baixa: "Baixa" };
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
-export const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+export const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return (h ?? 0) * 60 + (m ?? 0); };
 export const toTime = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
 export function mondayOf(d: Date) {
@@ -105,10 +105,10 @@ export function generate(days: Day[], subjects: Subject[], duration: number, blo
   let last = "";
   const firstDay: Record<string, number> = {};
   for (const slot of studySlots) {
-    subjects.forEach((s) => (credit[s.id] += PRIORITY_WEIGHT[s.priority] / total));
-    const ranked = [...subjects].sort((a, b) => credit[b.id] - credit[a.id]);
-    const pick = ranked.find((s) => s.id !== last) ?? ranked[0];
-    credit[pick.id] -= 1;
+    subjects.forEach((s) => (credit[s.id]! += PRIORITY_WEIGHT[s.priority] / total));
+    const ranked = [...subjects].sort((a, b) => credit[b.id]! - credit[a.id]!);
+    const pick = ranked.find((s) => s.id !== last) ?? ranked[0]!;
+    credit[pick.id]! -= 1;
     last = pick.id;
     firstDay[pick.id] ??= slot.day;
     out.push({ id: uid(), day: slot.day, start: toTime(slot.start), end: toTime(slot.end), subjectId: pick.id, review: false, status: "pending" });
@@ -117,7 +117,7 @@ export function generate(days: Day[], subjects: Subject[], duration: number, blo
   reviewSlots.forEach((slot, i) => {
     const candidates = byPriority.filter((s) => firstDay[s.id] !== undefined && firstDay[s.id] !== slot.day);
     const pool = candidates.length ? candidates : byPriority;
-    const pick = pool[i % pool.length];
+    const pick = pool[i % pool.length]!;
     out.push({ id: uid(), day: slot.day, start: toTime(slot.start), end: toTime(slot.end), subjectId: pick.id, review: true, status: "pending" });
   });
   return out;
@@ -133,7 +133,7 @@ export function findFreeSlot(state: State, s: Session, now = new Date()) {
   if (!slots.length) return null;
   const load = (d: number) => state.sessions.filter((o) => o.day === d).length;
   slots.sort((a, b) => load(a.day) - load(b.day) || a.day - b.day || a.start - b.start);
-  const sl = slots[0];
+  const sl = slots[0]!;
   return { day: sl.day, start: toTime(sl.start), end: toTime(sl.end) };
 }
 
