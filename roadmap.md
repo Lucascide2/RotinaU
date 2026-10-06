@@ -12,3 +12,6 @@
 - [x] Cores no calendário: verde (tudo concluído), âmbar (pendências), contorno (hoje), roxo (selecionado)
 - [x] Testar horários novos e existentes, intervalos e preservação da duração
 - [x] Verificação: typecheck, build e testes no navegador sem erros
+
+- [x] Dias seguidos à direita de não realizadas, com zerar/incrementar por dia cumprido
+- [x] Exigir ao menos uma sessão na semana para sair da configuração
