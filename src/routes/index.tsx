@@ -263,7 +263,19 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const reorgTarget = reorg ? state.sessions.find((s) => s.id === reorg) : null;
   const reorgSlot = reorgTarget ? findFreeSlot(state, reorgTarget, now) : null;
 
-  const dbg = JSON.stringify({ focusOff, calOff, todayIdx, focusOffsets, windowDays, sorted: sorted.map((s) => `${s.id}:${s.day}`), weekStart: state.weekStart });
+  const dbg = JSON.stringify({
+    focusOff, calOff, todayIdx, focusOffsets, windowDays,
+    dod0: dateOfDay(state.weekStart, 0).toUTCString(),
+    dod0day: dateOfDay(state.weekStart, 0).getDay(),
+    dod0local: dateOfDay(state.weekStart, 0).toString(),
+    d0: dayOffsetDate(state.weekStart, now, 0).toUTCString(),
+    d0day: dayOffsetDate(state.weekStart, now, 0).getDay(),
+    d0local: dayOffsetDate(state.weekStart, now, 0).toString(),
+    d1: dayOffsetDate(state.weekStart, now, 1).toUTCString(),
+    nowLocal: now.toString(),
+    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    sorted: sorted.map((s) => `${s.id}:${s.day}`), weekStart: state.weekStart,
+  });
 
   return (
     <Screen title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
