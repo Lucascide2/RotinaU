@@ -8,3 +8,4 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+- Domain logic (routine generation, stats, early/overdue rules) lives in src/lib/rotina.ts; UI state persists in localStorage. Why: keeps pure logic testable and separate from screens.
