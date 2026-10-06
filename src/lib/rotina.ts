@@ -87,11 +87,32 @@ export function defaultState(): State {
 
 type Slot = { day: number; start: number; end: number };
 
+export const SESSION_GAP = 5;
+
+/** Ajusta sessões já salvas, preservando duração e sem repetir o deslocamento. */
+export function withSessionGaps(sessions: Session[]): Session[] {
+  const adjusted = new Map<string, Session>();
+  const sorted = [...sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
+  let previous: Session | undefined;
+  for (const session of sorted) {
+    const start = toMin(session.start);
+    const shift = previous?.day === session.day
+      ? Math.max(0, toMin(previous.end) + SESSION_GAP - start)
+      : 0;
+    const next = shift > 0
+      ? { ...session, start: toTime(start + shift), end: toTime(toMin(session.end) + shift) }
+      : session;
+    adjusted.set(session.id, next);
+    previous = next;
+  }
+  return sessions.map((session) => adjusted.get(session.id) ?? session);
+}
+
 export function buildSlots(days: Day[], duration: number): Slot[] {
   const slots: Slot[] = [];
   days.forEach((d, day) => {
     if (!d.enabled) return;
-    for (let t = toMin(d.start); t + duration <= toMin(d.end); t += duration) slots.push({ day, start: t, end: t + duration });
+    for (let t = toMin(d.start); t + duration <= toMin(d.end); t += duration + SESSION_GAP) slots.push({ day, start: t, end: t + duration });
   });
   return slots;
 }
@@ -99,7 +120,7 @@ export function buildSlots(days: Day[], duration: number): Slot[] {
 /** Gera rotina: proporcional à prioridade, com revisões em dias diferentes do estudo inicial. */
 export function generate(days: Day[], subjects: Subject[], duration: number, blocked: Slot[] = [], after?: Date, weekStart?: string): Session[] {
   let slots = buildSlots(days, duration).filter(
-    (s) => !blocked.some((b) => b.day === s.day && s.start < b.end && b.start < s.end),
+    (s) => !blocked.some((b) => b.day === s.day && s.start < b.end + SESSION_GAP && b.start < s.end + SESSION_GAP),
   );
   if (after && weekStart) slots = slots.filter((s) => plannedAt(weekStart, { day: s.day, start: toTime(s.start) }) > after);
   if (!subjects.length || !slots.length) return [];
@@ -136,7 +157,7 @@ export function findFreeSlot(state: State, s: Session, now = new Date()) {
   const len = toMin(s.end) - toMin(s.start);
   const slots = buildSlots(state.days, len).filter((sl) => {
     if (plannedAt(state.weekStart, { day: sl.day, start: toTime(sl.start) }) <= now) return false;
-    return !state.sessions.some((o) => o.id !== s.id && o.day === sl.day && toMin(o.start) < sl.end && sl.start < toMin(o.end));
+    return !state.sessions.some((o) => o.id !== s.id && o.day === sl.day && toMin(o.start) < sl.end + SESSION_GAP && sl.start < toMin(o.end) + SESSION_GAP);
   });
   if (!slots.length) return null;
   const load = (d: number) => state.sessions.filter((o) => o.day === d).length;

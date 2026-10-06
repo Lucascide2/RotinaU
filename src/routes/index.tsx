@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
   dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, generate,
-  isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid, weekIndexOf,
+  isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid, weekIndexOf, withSessionGaps,
 } from "@/lib/rotina";
 import { calendarOffsets } from "@/lib/calendar";
 
@@ -36,7 +36,7 @@ function Index() {
     if (s.weekStart !== monday) {
       s = { ...s, weekStart: monday, dismissed: [], sessions: s.sessions.length ? generate(s.days, s.subjects, s.duration) : [] };
     }
-    setState(s);
+    setState({ ...s, sessions: withSessionGaps(s.sessions) });
     const t = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
@@ -346,17 +346,6 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
       {windowDays.map((d) => {
         const list = sorted.filter((s) => s.day === d);
         if (!list.length) return null;
-        // insere pausas entre sessões em tempo consecutivo (mesmo dia, fim == início)
-        const items: (Session | { brk: number })[] = [];
-        list.forEach((s, i) => {
-          items.push(s);
-          const next = list[i + 1];
-          if (next && toMin(next.start) - toMin(s.end) === 0) {
-            const len = toMin(s.end) - toMin(s.start);
-            const brk = len === 30 ? 5 : len === 45 ? 7 : len === 60 ? 10 : Math.max(5, Math.round(len / 6 / 5) * 5);
-            items.push({ brk });
-          }
-        });
         return (
           <section key={d}>
             <h2 className="mb-1.5 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-secondary-foreground">
@@ -365,20 +354,12 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
               {list.every((s) => s.status === "done") && <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] text-success normal-case">✓ tudo concluído</span>}
             </h2>
             <div className="divide-y rounded-xl border bg-card shadow-sm">
-              {items.map((it, idx) =>
-                "brk" in it ? (
-                  <div key={`brk-${idx}`} className="flex items-center gap-2 border-l-4 border-l-break-accent bg-early-soft px-4 py-1.5">
-                    <span className="flex-1 border-t border-dashed border-early/30" />
-                    <span className="text-[11px] font-semibold text-early">☕ Pausa de {it.brk} min</span>
-                    <span className="flex-1 border-t border-dashed border-early/30" />
-                  </div>
-                ) : (
+              {list.map((it) => (
                   <SessionRow key={it.id} s={it} state={state} now={now} name={subj(it.subjectId)} open={open === it.id}
                     onToggle={() => setOpen(open === it.id ? null : it.id)}
                     onDone={() => { setSession(it.id, { status: "done", completedAt: new Date().toISOString() }); setOpen(null); }}
                     onUndo={() => { setSession(it.id, { status: "pending", completedAt: undefined }); setOpen(null); }} />
-                ),
-              )}
+              ))}
             </div>
           </section>
         );
