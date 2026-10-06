@@ -222,13 +222,19 @@ function Subjects({ state, update }: { state: State; update: (p: Partial<State>)
 function Routine({ state, update, now }: { state: State; update: (p: Partial<State>) => void; now: Date }) {
   const [open, setOpen] = useState<string | null>(null);
   const [reorg, setReorg] = useState<string | null>(null);
+  const [focus, setFocus] = useState<number | null>(null);
+  const [calOpen, setCalOpen] = useState(false);
   const st = useMemo(() => stats(state, now), [state, now]);
   const subj = (id: string) => state.subjects.find((s) => s.id === id)?.name ?? "Disciplina removida";
   const setSession = (id: string, p: Partial<Session>) =>
     update({ sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...p } : s)) });
 
+  const todayIdx = (now.getDay() + 6) % 7;
+  const focusDay = focus ?? todayIdx;
   const sorted = [...state.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
-  const days = [...new Set(sorted.map((s) => s.day))];
+  // janela de 3 dias a partir do dia focado
+  const windowDays = [focusDay, focusDay + 1, focusDay + 2].filter((d) => d < 7);
+  const days = [...new Set(sorted.map((s) => s.day))].filter((d) => windowDays.includes(d));
   const totalMin = state.sessions.reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0);
   const overdue = sorted.filter((s) => isOverdue(state.weekStart, s, now));
   const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
@@ -256,7 +262,42 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const reorgSlot = reorgTarget ? findFreeSlot(state, reorgTarget, now) : null;
 
   return (
-    <Screen title="Sua rotina da semana" subtitle="Sugestão baseada na sua disponibilidade e nas prioridades informadas."
+    <Screen title={focusDay === todayIdx ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
+      subtitle={focusDay === todayIdx ? "Hoje e os próximos dois dias." : "Dois dias a partir do dia selecionado."}
+      action={
+        <div className="relative">
+          <button onClick={() => setCalOpen(!calOpen)} aria-label="Abrir calendário"
+            className={`grid h-10 w-10 place-items-center rounded-xl border text-lg transition ${calOpen ? "border-primary bg-primary-soft" : "bg-card"}`}>📅</button>
+          {calOpen && (
+            <div className="absolute right-0 z-20 mt-2 w-[300px] rounded-xl border bg-card p-3 shadow-lg">
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Escolha o dia</div>
+              <div className="grid grid-cols-7 gap-1">
+                {[0, 1, 2, 3, 4, 5, 6].map((d) => {
+                  const list = sorted.filter((s) => s.day === d);
+                  const allDone = list.length > 0 && list.every((s) => s.status === "done");
+                  const hasMissed = list.some((s) => isOverdue(state.weekStart, s, now));
+                  const selected = d === focusDay;
+                  return (
+                    <button key={d} onClick={() => { setFocus(d); setCalOpen(false); }}
+                      className={`flex flex-col items-center rounded-lg py-1.5 text-[10px] font-bold transition
+                        ${selected ? "bg-primary text-primary-foreground" : allDone ? "bg-success-soft text-success" : hasMissed ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>
+                      <span>{DAY_SHORT[d]}</span>
+                      <span className={`mt-0.5 grid h-5 w-5 place-items-center rounded-full text-[11px] ${d === todayIdx && !selected ? "ring-2 ring-primary" : ""}`}>
+                        {dateOfDay(state.weekStart, d).getDate()}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+                <Legend cls="bg-success" label="Tudo concluído" />
+                <Legend cls="bg-warning" label="Pendências" />
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full ring-2 ring-primary" />Hoje</span>
+              </div>
+            </div>
+          )}
+        </div>
+      }
       footer={<PrimaryButton onClick={() => update({ step: "availability" })}>Ajustar rotina</PrimaryButton>}>
       <div className="rounded-2xl bg-gradient-primary p-4 text-primary-foreground">
         <div className="font-bold">{(totalMin / 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}h de estudo planejadas</div>
@@ -305,23 +346,51 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
 
       {!sorted.length && <Card><p className="text-sm text-muted-foreground">Nenhum bloco coube na sua disponibilidade. Ajuste os horários ou a duração das sessões.</p></Card>}
 
-      {days.map((d) => (
-        <section key={d}>
-          <h2 className="mb-1.5 text-xs font-extrabold uppercase tracking-wider text-secondary-foreground">
-            {DAY_NAMES[d]!.split("-")[0]} <span className="font-semibold text-muted-foreground">· {fmtDate(dateOfDay(state.weekStart, d)).split(", ")[1]}</span>
-          </h2>
-          <div className="divide-y rounded-xl border bg-card shadow-sm">
-            {sorted.filter((s) => s.day === d).map((s) => (
-              <SessionRow key={s.id} s={s} state={state} now={now} name={subj(s.subjectId)} open={open === s.id}
-                onToggle={() => setOpen(open === s.id ? null : s.id)}
-                onDone={() => { setSession(s.id, { status: "done", completedAt: new Date().toISOString() }); setOpen(null); }}
-                onMiss={() => { setSession(s.id, { status: "missed", completedAt: undefined }); setOpen(null); setReorg(s.id); }}
-                onUndo={() => { setSession(s.id, { status: "pending", completedAt: undefined }); setOpen(null); }}
-                onReorg={() => { setReorg(s.id); setOpen(null); }} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {windowDays.map((d) => {
+        const list = sorted.filter((s) => s.day === d);
+        if (!list.length) return null;
+        // insere pausas entre sessões em tempo consecutivo (mesmo dia, fim == início)
+        const items: (Session | { brk: number })[] = [];
+        list.forEach((s, i) => {
+          items.push(s);
+          const next = list[i + 1];
+          if (next && toMin(next.start) - toMin(s.end) === 0) {
+            const len = toMin(s.end) - toMin(s.start);
+            const brk = len === 30 ? 5 : len === 45 ? 7 : len === 60 ? 10 : Math.max(5, Math.round(len / 6 / 5) * 5);
+            items.push({ brk });
+          }
+        });
+        return (
+          <section key={d}>
+            <h2 className="mb-1.5 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-secondary-foreground">
+              {d === todayIdx ? "Hoje" : DAY_NAMES[d]!.split("-")[0]}
+              <span className="font-semibold text-muted-foreground">· {fmtDate(dateOfDay(state.weekStart, d)).split(", ")[1]}</span>
+              {list.every((s) => s.status === "done") && <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] text-success normal-case">✓ tudo concluído</span>}
+            </h2>
+            <div className="divide-y rounded-xl border bg-card shadow-sm">
+              {items.map((it, idx) =>
+                "brk" in it ? (
+                  <div key={`brk-${idx}`} className="flex items-center gap-2 bg-muted/50 px-4 py-1.5">
+                    <span className="flex-1 border-t border-dashed border-input" />
+                    <span className="text-[11px] font-semibold text-muted-foreground">☕ Pausa de {it.brk} min</span>
+                    <span className="flex-1 border-t border-dashed border-input" />
+                  </div>
+                ) : (
+                  <SessionRow key={it.id} s={it} state={state} now={now} name={subj(it.subjectId)} open={open === it.id}
+                    onToggle={() => setOpen(open === it.id ? null : it.id)}
+                    onDone={() => { setSession(it.id, { status: "done", completedAt: new Date().toISOString() }); setOpen(null); }}
+                    onMiss={() => { setSession(it.id, { status: "missed", completedAt: undefined }); setOpen(null); setReorg(it.id); }}
+                    onUndo={() => { setSession(it.id, { status: "pending", completedAt: undefined }); setOpen(null); }}
+                    onReorg={() => { setReorg(it.id); setOpen(null); }} />
+                ),
+              )}
+            </div>
+          </section>
+        );
+      })}
+      {!days.length && sorted.length > 0 && (
+        <Card><p className="text-sm text-muted-foreground">Nenhuma sessão neste período. Use o calendário para ver outros dias da semana.</p></Card>
+      )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <Legend cls="bg-success" label="Concluída no horário" />
