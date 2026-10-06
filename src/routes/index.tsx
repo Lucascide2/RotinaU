@@ -222,13 +222,19 @@ function Subjects({ state, update }: { state: State; update: (p: Partial<State>)
 function Routine({ state, update, now }: { state: State; update: (p: Partial<State>) => void; now: Date }) {
   const [open, setOpen] = useState<string | null>(null);
   const [reorg, setReorg] = useState<string | null>(null);
+  const [focus, setFocus] = useState<number | null>(null);
+  const [calOpen, setCalOpen] = useState(false);
   const st = useMemo(() => stats(state, now), [state, now]);
   const subj = (id: string) => state.subjects.find((s) => s.id === id)?.name ?? "Disciplina removida";
   const setSession = (id: string, p: Partial<Session>) =>
     update({ sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...p } : s)) });
 
+  const todayIdx = (now.getDay() + 6) % 7;
+  const focusDay = focus ?? todayIdx;
   const sorted = [...state.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
-  const days = [...new Set(sorted.map((s) => s.day))];
+  // janela de 3 dias a partir do dia focado
+  const windowDays = [focusDay, focusDay + 1, focusDay + 2].filter((d) => d < 7);
+  const days = [...new Set(sorted.map((s) => s.day))].filter((d) => windowDays.includes(d));
   const totalMin = state.sessions.reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0);
   const overdue = sorted.filter((s) => isOverdue(state.weekStart, s, now));
   const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
