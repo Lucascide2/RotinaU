@@ -15,3 +15,7 @@
 
 - [x] Dias seguidos à direita de não realizadas, com zerar/incrementar por dia cumprido
 - [x] Exigir ao menos uma sessão na semana para sair da configuração
+
+- [x] Sugestão de aumento só após semana anterior 100% e no máximo a cada 2 semanas
+- [x] Ajustar rotina altera só hoje (se nada estudado) e dias seguintes
+- [x] Remover indicador de revisão

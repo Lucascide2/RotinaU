@@ -22,6 +22,7 @@ export type State = {
   weekStart: string; // ISO segunda
   dismissed: string[];
   weeks?: Record<string, Session[]>;
+  upShownAt?: string; // ISO da última exibição da sugestão de aumento
 };
 
 export const DAY_NAMES = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
@@ -223,4 +224,33 @@ export function stats(state: State, now = new Date()) {
   if (!daySet.has(dayKey(cur))) cur.setDate(cur.getDate() - 1);
   while (daySet.has(dayKey(cur))) { streak++; cur.setDate(cur.getDate() - 1); }
   return { total: state.sessions.length, done: done.length, early: early.length, missed: missed.length, days: daySet.size, streak };
+}
+
+const DAY_MS = 86400000;
+
+/** Sugestão de aumento: semana anterior 100% cumprida e não mostrada nas últimas duas semanas. */
+export function canSuggestIncrease(state: State, now = new Date()) {
+  const prev = new Date(mondayOf(now)); prev.setDate(prev.getDate() - 7);
+  const last = state.weeks?.[prev.toISOString()] ?? [];
+  if (!last.length || !last.every((s) => s.status === "done")) return false;
+  if (!state.upShownAt) return true;
+  const shown = new Date(state.upShownAt);
+  if (mondayOf(shown).getTime() === mondayOf(now).getTime()) return true; // ainda é a mesma exibição
+  return now.getTime() - shown.getTime() >= 14 * DAY_MS;
+}
+
+/** Ao ajustar a rotina, só hoje (se nada foi estudado hoje) e os dias seguintes mudam. */
+export function replanFromToday(state: State, fresh: Session[], now = new Date()): Pick<State, "sessions" | "weeks" | "weekStart"> {
+  const current = mondayOf(now).toISOString();
+  const today = weekIndexOf(now);
+  const old = state.weeks?.[current] ?? (state.weekStart === current ? state.sessions : []);
+  const studiedToday = old.some((s) => s.day === today && s.status === "done");
+  const keepUntil = studiedToday ? today : today - 1;
+  const kept = old.filter((s) => s.day <= keepUntil);
+  const sessions = [...kept, ...fresh.filter((s) => s.day > keepUntil)];
+  const weeks: Record<string, Session[]> = { ...state.weeks, [current]: sessions };
+  for (const key of Object.keys(weeks)) {
+    if (new Date(key) > new Date(current)) weeks[key] = fresh.map((s) => ({ ...s, id: uid() }));
+  }
+  return { sessions, weeks, weekStart: current };
 }

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
   dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, generate,
-  isEarly, isOverdue, plannedAt, stats, toMin, uid, weekIndexOf, prepareWeeks, stateForDate, streakOf, sessionsForDate,
+  isEarly, isOverdue, plannedAt, stats, toMin, uid, weekIndexOf, prepareWeeks, stateForDate, streakOf, canSuggestIncrease, replanFromToday, sessionsForDate,
 } from "@/lib/rotina";
 import { calendarOffsets } from "@/lib/calendar";
 
@@ -169,7 +169,7 @@ function Subjects({ state, update }: { state: State; update: (p: Partial<State>)
   const add = () => { const id = uid(); update({ subjects: [...state.subjects, { id, name: "Nova disciplina", priority: "media" }] }); setEditing(id); };
   const valid = state.subjects.filter((s) => s.name.trim());
   const preview = generate(state.days, valid, state.duration);
-  const gen = () => { if (preview.length) update({ step: "routine", dismissed: [], sessions: preview }); };
+  const gen = () => { if (preview.length) update({ step: "routine", dismissed: [], ...(state.sessions.length || state.weeks ? replanFromToday(state, preview, new Date()) : { sessions: preview }) }); };
   return (
     <Screen title="Disciplinas e prioridades" subtitle="Adicione as disciplinas e indique onde precisa dedicar mais esforço."
       onBack={() => update({ step: "availability" })}
@@ -251,11 +251,17 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   if (longMissed >= 2 && state.duration > 30) {
     const to = state.duration === 60 ? 45 : 30;
     suggestion = { id: `down-${state.duration}`, title: "💡 Que tal ajustar sua rotina?", text: `Você não conseguiu concluir algumas sessões de ${state.duration} minutos recentemente. Sugestão: reduzir seus próximos blocos para ${to} minutos.`, to };
-  } else if (st.done >= 4 && overdue.length === 0 && state.duration < 60) {
+  } else if (canSuggestIncrease(state, now) && state.duration < 60) {
     const to = state.duration === 30 ? 45 : 60;
-    suggestion = { id: `up-${state.duration}`, title: "💡 Você está indo bem!", text: `Você tem conseguido cumprir suas sessões regularmente. Sugestão: aumentar seus próximos blocos de ${state.duration} para ${to} minutos.`, to };
+    suggestion = { id: `up-${state.duration}`, title: "💡 Você está indo bem!", text: `Você cumpriu todas as sessões da semana passada. Sugestão: aumentar seus próximos blocos de ${state.duration} para ${to} minutos.`, to };
   }
   if (suggestion && state.dismissed.includes(suggestion.id)) suggestion = null;
+  const showingUp = suggestion?.id.startsWith("up-") ?? false;
+  useEffect(() => {
+    if (!showingUp) return;
+    const at = state.upShownAt ? new Date(state.upShownAt) : null;
+    if (!at || now.getTime() - at.getTime() >= 14 * 86400000) update({ upShownAt: now.toISOString() });
+  }, [showingUp]);
 
   const applyDuration = (to: number) => {
     const kept = viewState.sessions.filter((s) => s.status === "done" || plannedAt(viewState.weekStart, s) <= now);
@@ -378,7 +384,6 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
         <Legend cls="bg-success" label="Concluída no horário" />
         <Legend cls="bg-early" label="Concluída antecipadamente" />
         <Legend cls="bg-warning" label="Não realizada" />
-        <Legend cls="bg-review" label="Revisão" />
       </div>
       <button onClick={() => update({ step: "subjects" })} className="text-sm font-semibold text-primary">Editar disciplinas e duração</button>
     </Screen>
@@ -417,7 +422,6 @@ function SessionRow({ s, state, now, name, open, onToggle, onDone, onUndo }: {
         <span className="flex-1">
           <span className={`block text-sm font-bold ${s.status === "done" ? "text-muted-foreground line-through decoration-1" : ""}`}>{name}</span>
           <span className="mt-1 flex flex-wrap gap-1">
-            {s.review && <Badge cls="bg-review-soft text-review">↻ Revisão</Badge>}
             {s.status === "done" && !early && <Badge cls="bg-success-soft text-success">✓ Concluída</Badge>}
             {early && <Badge cls="bg-early-soft text-early">⏩ Antecipada</Badge>}
             {overdue && <Badge cls="bg-warning-soft text-warning">⚠️ Não realizada</Badge>}
