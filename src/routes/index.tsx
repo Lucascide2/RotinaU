@@ -238,8 +238,8 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
       ...(weekStart === state.weekStart ? { sessions } : {}) });
   };
   const sorted = [...viewState.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
-  // janela de 3 dias a partir do dia focado (relativa a hoje)
-  const focusOffsets = [focusOff, focusOff + 1, focusOff + 2].filter((o) => o >= -7 && o <= 7);
+  // apenas o dia focado é exibido (relativo a hoje)
+  const focusOffsets = [focusOff];
   const windowDates = focusOffsets.map((o) => dayOffsetDate(state.weekStart, now, o));
   const totalMin = viewState.sessions.reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0);
   const overdue = sorted.filter((s) => isOverdue(viewState.weekStart, s, now));
