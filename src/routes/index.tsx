@@ -286,9 +286,9 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
 
       {reorgTarget && (
         <Card className="border-warning/40 bg-warning-soft">
-          <div className="text-sm font-bold">⚠️ Você não realizou o estudo de {subj(reorgTarget.subjectId)} de {DAY_NAMES[reorgTarget.day].toLowerCase()}.</div>
+          <div className="text-sm font-bold">⚠️ Você não realizou o estudo de {subj(reorgTarget.subjectId)} de {DAY_NAMES[reorgTarget.day]!.toLowerCase()}.</div>
           <p className="mt-1 text-xs text-muted-foreground">
-            {reorgSlot ? `Sugestão: transferir esse estudo para ${DAY_NAMES[reorgSlot.day].toLowerCase()} às ${reorgSlot.start}?` : "Não há horários livres nesta semana. Tente aumentar sua disponibilidade."}
+            {reorgSlot ? `Sugestão: transferir esse estudo para ${DAY_NAMES[reorgSlot.day]!.toLowerCase()} às ${reorgSlot.start}?` : "Não há horários livres nesta semana. Tente aumentar sua disponibilidade."}
           </p>
           <div className="mt-3 flex gap-2">
             {reorgSlot && (
@@ -305,7 +305,7 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
       {days.map((d) => (
         <section key={d}>
           <h2 className="mb-1.5 text-xs font-extrabold uppercase tracking-wider text-secondary-foreground">
-            {DAY_NAMES[d].split("-")[0]} <span className="font-semibold text-muted-foreground">· {fmtDate(dateOfDay(state.weekStart, d)).split(", ")[1]}</span>
+            {DAY_NAMES[d]!.split("-")[0]} <span className="font-semibold text-muted-foreground">· {fmtDate(dateOfDay(state.weekStart, d)).split(", ")[1]}</span>
           </h2>
           <div className="divide-y rounded-xl border bg-card shadow-sm">
             {sorted.filter((s) => s.day === d).map((s) => (
