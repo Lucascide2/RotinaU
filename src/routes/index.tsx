@@ -65,11 +65,14 @@ function Shell({ children }: { children: ReactNode }) {
     </main>
   );
 }
-function Screen({ title, subtitle, children, footer, onBack }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode; onBack?: () => void }) {
+function Screen({ title, subtitle, children, footer, onBack, action }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode; onBack?: () => void; action?: ReactNode }) {
   return (
     <div className="flex flex-1 flex-col px-5 pb-5 pt-7">
       {onBack && <button onClick={onBack} className="mb-3 self-start text-sm font-semibold text-primary">← Voltar</button>}
-      <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+        {action}
+      </div>
       {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       <div className="mt-5 flex flex-1 flex-col gap-3">{children}</div>
       {footer && <div className="sticky bottom-0 mt-6 bg-background pt-3">{footer}</div>}
