@@ -47,10 +47,11 @@ export function plannedEnd(weekStart: string, s: { day: number; end: string }) {
   const d = dateOfDay(weekStart, s.day); d.setMinutes(toMin(s.end)); return d;
 }
 export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-export const fmtDate = (d: Date) => `${DAY_SHORT[(d.getDay() + 6) % 7]}, ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+/** Índice 0..6 com segunda = 0 (Date.getDay() usa domingo = 0). */
+export const weekIndexOf = (d: Date) => (d.getDay() + 6) % 7;
+export const fmtDate = (d: Date) => `${DAY_SHORT[weekIndexOf(d)]}, ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 export const fmtDay = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-/** Índice do dia da semana com segunda = 0 (Date.getDay() usa domingo = 0). */
-export const todayIdxOf = (now: Date) => (now.getDay() + 6) % 7;
+export const todayIdxOf = (now: Date) => weekIndexOf(now);
 /** Data de um dia relativo a hoje (0 = hoje, -1 = ontem, 6 = daqui a 6 dias). */
 export function dayOffsetDate(weekStart: string, now: Date, offset: number) {
   const d = dateOfDay(weekStart, todayIdxOf(now)); d.setDate(d.getDate() + offset); return d;

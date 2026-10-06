@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
   dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, findFreeSlot, generate,
-  isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid,
+  isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid, weekIndexOf,
 } from "@/lib/rotina";
 
 export const Route = createFileRoute("/")({
@@ -225,6 +225,7 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const [focusOff, setFocusOff] = useState(0); // dia selecionado, relativo a hoje
   const [calOpen, setCalOpen] = useState(false);
   const [calOff, setCalOff] = useState(0); // início da janela do calendário
+  const [selOff, setSelOff] = useState(0); // dia marcado como selecionado
   const st = useMemo(() => stats(state, now), [state, now]);
   const subj = (id: string) => state.subjects.find((s) => s.id === id)?.name ?? "Disciplina removida";
   const setSession = (id: string, p: Partial<Session>) =>
@@ -232,11 +233,11 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
 
   const todayIdx = todayIdxOf(now);
   const focusDate = dayOffsetDate(state.weekStart, now, focusOff);
-  const focusDay = (focusDate.getDay() + 6) % 7;
+  const focusDay = weekIndexOf(focusDate);
   const sorted = [...state.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
   // janela de 3 dias a partir do dia focado (relativa a hoje)
   const focusOffsets = [focusOff, focusOff + 1, focusOff + 2].filter((o) => o >= -7 && o <= 6);
-  const windowDays = focusOffsets.map((o) => (dayOffsetDate(state.weekStart, now, o).getDay() + 6) % 7);
+  const windowDays = focusOffsets.map((o) => weekIndexOf(dayOffsetDate(state.weekStart, now, o)));
   const totalMin = state.sessions.reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0);
   const overdue = sorted.filter((s) => isOverdue(state.weekStart, s, now));
   const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
@@ -263,23 +264,9 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const reorgTarget = reorg ? state.sessions.find((s) => s.id === reorg) : null;
   const reorgSlot = reorgTarget ? findFreeSlot(state, reorgTarget, now) : null;
 
-  const dbg = JSON.stringify({
-    focusOff, calOff, todayIdx, focusOffsets, windowDays,
-    dod0: dateOfDay(state.weekStart, 0).toUTCString(),
-    dod0day: dateOfDay(state.weekStart, 0).getDay(),
-    dod0local: dateOfDay(state.weekStart, 0).toString(),
-    d0: dayOffsetDate(state.weekStart, now, 0).toUTCString(),
-    d0day: dayOffsetDate(state.weekStart, now, 0).getDay(),
-    d0local: dayOffsetDate(state.weekStart, now, 0).toString(),
-    d1: dayOffsetDate(state.weekStart, now, 1).toUTCString(),
-    nowLocal: now.toString(),
-    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    sorted: sorted.map((s) => `${s.id}:${s.day}`), weekStart: state.weekStart,
-  });
-
   return (
     <Screen title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
-      subtitle={dbg as any}
+      subtitle={`${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[0]!))} a ${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[focusOffsets.length - 1]!))} · toque no calendário para mudar o dia`}
       action={
         <div className="relative">
           <button onClick={() => setCalOpen(!calOpen)} aria-label="Abrir calendário"
@@ -287,25 +274,25 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
           {calOpen && (
             <div className="absolute right-0 z-20 mt-2 w-[300px] rounded-xl border bg-card p-3 shadow-lg">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <button onClick={() => setCalOff((v) => Math.max(-7, v - 7))} disabled={calOff <= -7} aria-label="Ver os 7 dias anteriores"
+                <button onClick={() => setCalOff(-7)} disabled={calOff < 0} aria-label="Ver os 7 dias anteriores"
                   className="grid h-7 w-7 place-items-center rounded-lg border text-sm font-bold transition hover:bg-muted disabled:opacity-30">←</button>
                 <div className="text-center">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Escolha o dia</div>
-                  <div className="text-[10px] text-muted-foreground">{fmtDay(dayOffsetDate(state.weekStart, now, calOff))} a {fmtDay(dayOffsetDate(state.weekStart, now, calOff + 6))}</div>
+                  <div className="text-[10px] text-muted-foreground">{fmtDay(dayOffsetDate(state.weekStart, now, Math.min(calOff, 0)))} a {fmtDay(dayOffsetDate(state.weekStart, now, calOff < 0 ? 0 : 6))}</div>
                 </div>
                 <button onClick={() => setCalOff((v) => Math.min(0, v + 7))} disabled={calOff >= 0} aria-label="Voltar aos dias à frente"
                   className="grid h-7 w-7 place-items-center rounded-lg border text-sm font-bold transition hover:bg-muted disabled:opacity-30">→</button>
               </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 7 }, (_, i) => calOff + i).map((o) => {
-                  const d = (dayOffsetDate(state.weekStart, now, o).getDay() + 6) % 7;
+              <div className={`grid gap-1 ${calOff < 0 ? "grid-cols-4" : "grid-cols-7"}`}>
+                {(calOff < 0 ? Array.from({ length: 8 }, (_, i) => -7 + i) : Array.from({ length: 7 }, (_, i) => i)).map((o) => {
                   const date = dayOffsetDate(state.weekStart, now, o);
+                  const d = weekIndexOf(date);
                   const list = sorted.filter((s) => s.day === d);
                   const allDone = list.length > 0 && list.every((s) => s.status === "done");
                   const hasMissed = list.some((s) => isOverdue(state.weekStart, s, now));
-                  const selected = o === focusOff;
+                  const selected = o === selOff;
                   return (
-                    <button key={o} onClick={() => { setFocusOff(o); setCalOpen(false); }}
+                    <button key={o} onClick={() => { setSelOff(o); setFocusOff(weekIndexOf(date) - todayIdx); setCalOpen(false); }}
                       className={`flex flex-col items-center rounded-lg py-1.5 text-[10px] font-bold transition
                         ${selected ? "bg-primary text-primary-foreground" : allDone ? "bg-success-soft text-success" : hasMissed ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>
                       <span>{DAY_SHORT[d]}</span>
