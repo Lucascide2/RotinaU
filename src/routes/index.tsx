@@ -401,8 +401,8 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
           </section>
         );
       })}
-      {!days.length && sorted.length > 0 && (
-        <Card><p className="text-sm text-muted-foreground">Nenhuma sessão neste período. Use o calendário para ver outros dias da semana.</p></Card>
+      {!sorted.some((s) => windowDays.includes(s.day)) && sorted.length > 0 && (
+        <Card><p className="text-sm text-muted-foreground">Nenhuma sessão neste período. Use o calendário para ver outros dias.</p></Card>
       )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
