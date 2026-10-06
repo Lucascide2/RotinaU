@@ -368,9 +368,9 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
               {list.every((s) => s.status === "done") && <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] text-success normal-case">✓ tudo concluído</span>}
             </h2>
             <div className="divide-y rounded-xl border bg-card shadow-sm">
-              {items.map((it) =>
+              {items.map((it, idx) =>
                 "brk" in it ? (
-                  <div key={`brk-${it.brk}-${list.length}`} className="flex items-center gap-2 bg-muted/50 px-4 py-1.5">
+                  <div key={`brk-${idx}`} className="flex items-center gap-2 bg-muted/50 px-4 py-1.5">
                     <span className="flex-1 border-t border-dashed border-input" />
                     <span className="text-[11px] font-semibold text-muted-foreground">☕ Pausa de {it.brk} min</span>
                     <span className="flex-1 border-t border-dashed border-input" />
