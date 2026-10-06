@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
   dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, findFreeSlot, generate,
-  isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid,
+  isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid, weekIndexOf,
 } from "@/lib/rotina";
 
 export const Route = createFileRoute("/")({
@@ -232,11 +232,11 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
 
   const todayIdx = todayIdxOf(now);
   const focusDate = dayOffsetDate(state.weekStart, now, focusOff);
-  const focusDay = (focusDate.getDay() + 6) % 7;
+  const focusDay = weekIndexOf(focusDate);
   const sorted = [...state.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
   // janela de 3 dias a partir do dia focado (relativa a hoje)
   const focusOffsets = [focusOff, focusOff + 1, focusOff + 2].filter((o) => o >= -7 && o <= 6);
-  const windowDays = focusOffsets.map((o) => (dayOffsetDate(state.weekStart, now, o).getDay() + 6) % 7);
+  const windowDays = focusOffsets.map((o) => weekIndexOf(dayOffsetDate(state.weekStart, now, o)));
   const totalMin = state.sessions.reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0);
   const overdue = sorted.filter((s) => isOverdue(state.weekStart, s, now));
   const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
@@ -263,23 +263,9 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const reorgTarget = reorg ? state.sessions.find((s) => s.id === reorg) : null;
   const reorgSlot = reorgTarget ? findFreeSlot(state, reorgTarget, now) : null;
 
-  const dbg = JSON.stringify({
-    focusOff, calOff, todayIdx, focusOffsets, windowDays,
-    dod0: dateOfDay(state.weekStart, 0).toUTCString(),
-    dod0day: dateOfDay(state.weekStart, 0).getDay(),
-    dod0local: dateOfDay(state.weekStart, 0).toString(),
-    d0: dayOffsetDate(state.weekStart, now, 0).toUTCString(),
-    d0day: dayOffsetDate(state.weekStart, now, 0).getDay(),
-    d0local: dayOffsetDate(state.weekStart, now, 0).toString(),
-    d1: dayOffsetDate(state.weekStart, now, 1).toUTCString(),
-    nowLocal: now.toString(),
-    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    sorted: sorted.map((s) => `${s.id}:${s.day}`), weekStart: state.weekStart,
-  });
-
   return (
     <Screen title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
-      subtitle={dbg as any}
+      subtitle={`${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[0]!))} a ${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[focusOffsets.length - 1]!))} · toque no calendário para mudar o dia`}>
       action={
         <div className="relative">
           <button onClick={() => setCalOpen(!calOpen)} aria-label="Abrir calendário"
@@ -298,7 +284,7 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
               </div>
               <div className="grid grid-cols-7 gap-1">
                 {Array.from({ length: 7 }, (_, i) => calOff + i).map((o) => {
-                  const d = (dayOffsetDate(state.weekStart, now, o).getDay() + 6) % 7;
+                  const d = weekIndexOf(dayOffsetDate(state.weekStart, now, o));
                   const date = dayOffsetDate(state.weekStart, now, o);
                   const list = sorted.filter((s) => s.day === d);
                   const allDone = list.length > 0 && list.every((s) => s.status === "done");
