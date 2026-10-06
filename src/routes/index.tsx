@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
   dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, generate,
-  isEarly, isOverdue, mondayOf, plannedAt, stats, toMin, todayIdxOf, uid, weekIndexOf, withSessionGaps,
+  isEarly, isOverdue, plannedAt, stats, toMin, uid, weekIndexOf, prepareWeeks, stateForDate, sessionsForDate,
 } from "@/lib/rotina";
 import { calendarOffsets } from "@/lib/calendar";
 
@@ -31,19 +31,14 @@ function Index() {
     let s: State;
     try { s = JSON.parse(localStorage.getItem(KEY) ?? "") as State; } catch { s = defaultState(); }
     if (!s?.days) s = defaultState();
-    // nova semana: replaneja mantendo configurações
-    const monday = mondayOf(new Date()).toISOString();
-    if (s.weekStart !== monday) {
-      s = { ...s, weekStart: monday, dismissed: [], sessions: s.sessions.length ? generate(s.days, s.subjects, s.duration) : [] };
-    }
-    setState({ ...s, sessions: withSessionGaps(s.sessions) });
+    setState(prepareWeeks(s, new Date()));
     const t = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
   useEffect(() => { if (state) localStorage.setItem(KEY, JSON.stringify(state)); }, [state]);
 
   if (!state) return <Shell><div /></Shell>;
-  const update = (p: Partial<State>) => setState((s) => ({ ...s!, ...p }));
+   const update = (p: Partial<State>) => setState((s) => s ? prepareWeeks({ ...s, ...p }, new Date()) : s);
 
   return (
     <Shell>
@@ -226,20 +221,23 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const [calOpen, setCalOpen] = useState(false);
   const [calOff, setCalOff] = useState(0); // início da janela do calendário
   const [selOff, setSelOff] = useState(0); // dia marcado como selecionado
-  const st = useMemo(() => stats(state, now), [state, now]);
   const subj = (id: string) => state.subjects.find((s) => s.id === id)?.name ?? "Disciplina removida";
-  const setSession = (id: string, p: Partial<Session>) =>
-    update({ sessions: state.sessions.map((s) => (s.id === id ? { ...s, ...p } : s)) });
-
-  const todayIdx = todayIdxOf(now);
   const focusDate = dayOffsetDate(state.weekStart, now, focusOff);
   const focusDay = weekIndexOf(focusDate);
-  const sorted = [...state.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
+  const viewState = stateForDate(state, focusDate);
+  const st = useMemo(() => stats(viewState, now), [state, focusOff, now]);
+  const setSession = (weekStart: string, id: string, p: Partial<Session>) => {
+    const target = stateForDate(state, new Date(weekStart));
+    const sessions = target.sessions.map((s) => s.id === id ? { ...s, ...p } : s);
+    update({ weeks: { ...state.weeks, [weekStart]: sessions },
+      ...(weekStart === state.weekStart ? { sessions } : {}) });
+  };
+  const sorted = [...viewState.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
   // janela de 3 dias a partir do dia focado (relativa a hoje)
-  const focusOffsets = [focusOff, focusOff + 1, focusOff + 2].filter((o) => o >= -7 && o <= 6);
-  const windowDays = focusOffsets.map((o) => weekIndexOf(dayOffsetDate(state.weekStart, now, o)));
-  const totalMin = state.sessions.reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0);
-  const overdue = sorted.filter((s) => isOverdue(state.weekStart, s, now));
+  const focusOffsets = [focusOff, focusOff + 1, focusOff + 2].filter((o) => o >= -7 && o <= 7);
+  const windowDates = focusOffsets.map((o) => dayOffsetDate(state.weekStart, now, o));
+  const totalMin = viewState.sessions.reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0);
+  const overdue = sorted.filter((s) => isOverdue(viewState.weekStart, s, now));
   const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
 
   // HU10 / HU11
@@ -255,15 +253,17 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   if (suggestion && state.dismissed.includes(suggestion.id)) suggestion = null;
 
   const applyDuration = (to: number) => {
-    const kept = state.sessions.filter((s) => s.status === "done" || plannedAt(state.weekStart, s) <= now);
+    const kept = viewState.sessions.filter((s) => s.status === "done" || plannedAt(viewState.weekStart, s) <= now);
     const blocked = kept.map((s) => ({ day: s.day, start: toMin(s.start), end: toMin(s.end) }));
-    const fresh = generate(state.days, state.subjects, to, blocked, now, state.weekStart);
-    update({ duration: to, sessions: [...kept, ...fresh] });
+    const fresh = generate(state.days, state.subjects, to, blocked, now, viewState.weekStart);
+    const sessions = [...kept, ...fresh];
+    update({ duration: to, weeks: { ...state.weeks, [viewState.weekStart]: sessions },
+      ...(viewState.weekStart === state.weekStart ? { sessions } : {}) });
   };
 
   return (
-    <Screen title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
-      subtitle={`${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[0]!))} a ${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[focusOffsets.length - 1]!))} · toque no calendário para mudar o dia`}
+    <Screen title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]?.toLowerCase()}`}
+      subtitle={`${fmtDay(focusDate)} a ${fmtDay(windowDates.at(-1) ?? focusDate)}`}
       action={
         <div className="relative">
           <button onClick={() => setCalOpen(!calOpen)} aria-label="Abrir calendário"
@@ -286,12 +286,13 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
                 {calendarOffsets(calOff < 0).map((o) => {
                   const date = dayOffsetDate(state.weekStart, now, o);
                   const d = weekIndexOf(date);
-                  const list = sorted.filter((s) => s.day === d);
+                  const calendarState = stateForDate(state, date);
+                  const list = sessionsForDate(state, date);
                   const allDone = list.length > 0 && list.every((s) => s.status === "done");
-                  const hasMissed = list.some((s) => isOverdue(state.weekStart, s, now));
+                  const hasMissed = list.some((s) => isOverdue(calendarState.weekStart, s, now));
                   const selected = o === selOff;
                   return (
-                    <button key={o} aria-label={fmtDate(date)} aria-current={o === 0 ? "date" : undefined} aria-pressed={selected} onClick={() => { setSelOff(o); setFocusOff(weekIndexOf(date) - todayIdx); setCalOpen(false); }}
+                    <button key={o} aria-label={fmtDate(date)} aria-current={o === 0 ? "date" : undefined} aria-pressed={selected} onClick={() => { setSelOff(o); setFocusOff(o); setOpen(null); setCalOpen(false); }}
                       className={`flex flex-col items-center rounded-lg py-1.5 text-[10px] font-bold transition
                         ${selected ? "bg-primary text-primary-foreground" : allDone ? "bg-success-soft text-success" : hasMissed ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>
                       <span>{DAY_SHORT[d]}</span>
@@ -314,7 +315,7 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
       footer={<PrimaryButton onClick={() => update({ step: "availability" })}>Ajustar rotina</PrimaryButton>}>
       <div className="rounded-2xl bg-gradient-primary p-4 text-primary-foreground">
         <div className="font-bold">{(totalMin / 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}h de estudo planejadas</div>
-        <div className="text-xs opacity-85">{st.total} blocos de {state.duration} minutos · semana de {fmtDate(new Date(state.weekStart))}</div>
+        <div className="text-xs opacity-85">{st.total} blocos de {state.duration} minutos · semana de {fmtDate(new Date(viewState.weekStart))}</div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-primary-foreground/25">
           <div className="h-full rounded-full bg-primary-foreground transition-all" style={{ width: `${pct}%` }} />
         </div>
@@ -341,31 +342,31 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
         </Card>
       )}
 
-      {!sorted.length && <Card><p className="text-sm text-muted-foreground">Nenhum bloco coube na sua disponibilidade. Ajuste os horários ou a duração das sessões.</p></Card>}
-
-      {windowDays.map((d) => {
-        const list = sorted.filter((s) => s.day === d);
+      {windowDates.map((date) => {
+        const d = weekIndexOf(date);
+        const dayState = stateForDate(state, date);
+        const list = sessionsForDate(state, date).sort((a, b) => toMin(a.start) - toMin(b.start));
         if (!list.length) return null;
         return (
-          <section key={d}>
+          <section key={date.toISOString()} aria-label={fmtDate(date)}>
             <h2 className="mb-1.5 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-secondary-foreground">
-              {d === todayIdx ? "Hoje" : DAY_NAMES[d]!.split("-")[0]}
-              <span className="font-semibold text-muted-foreground">· {fmtDate(dateOfDay(state.weekStart, d)).split(", ")[1]}</span>
+              {date.toDateString() === now.toDateString() ? "Hoje" : DAY_NAMES[d]?.split("-")[0]}
+              <span className="font-semibold text-muted-foreground">· {fmtDay(date)}</span>
               {list.every((s) => s.status === "done") && <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] text-success normal-case">✓ tudo concluído</span>}
             </h2>
             <div className="divide-y rounded-xl border bg-card shadow-sm">
               {list.map((it) => (
-                  <SessionRow key={it.id} s={it} state={state} now={now} name={subj(it.subjectId)} open={open === it.id}
+                  <SessionRow key={it.id} s={it} state={dayState} now={now} name={subj(it.subjectId)} open={open === it.id}
                     onToggle={() => setOpen(open === it.id ? null : it.id)}
-                    onDone={() => { setSession(it.id, { status: "done", completedAt: new Date().toISOString() }); setOpen(null); }}
-                    onUndo={() => { setSession(it.id, { status: "pending", completedAt: undefined }); setOpen(null); }} />
+                    onDone={() => { setSession(dayState.weekStart, it.id, { status: "done", completedAt: new Date().toISOString() }); setOpen(null); }}
+                    onUndo={() => { setSession(dayState.weekStart, it.id, { status: "pending", completedAt: undefined }); setOpen(null); }} />
               ))}
             </div>
           </section>
         );
       })}
-      {!sorted.some((s) => windowDays.includes(s.day)) && sorted.length > 0 && (
-        <Card><p className="text-sm text-muted-foreground">Nenhuma sessão neste período. Use o calendário para ver outros dias.</p></Card>
+      {!windowDates.some((date) => sessionsForDate(state, date).length > 0) && (
+        <Card><p className="text-sm text-muted-foreground">Nenhuma sessão registrada neste período.</p></Card>
       )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
