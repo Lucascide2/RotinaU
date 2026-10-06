@@ -262,7 +262,42 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const reorgSlot = reorgTarget ? findFreeSlot(state, reorgTarget, now) : null;
 
   return (
-    <Screen title="Sua rotina da semana" subtitle="Sugestão baseada na sua disponibilidade e nas prioridades informadas."
+    <Screen title={focusDay === todayIdx ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
+      subtitle={focusDay === todayIdx ? "Hoje e os próximos dois dias." : "Dois dias a partir do dia selecionado."}
+      action={
+        <div className="relative">
+          <button onClick={() => setCalOpen(!calOpen)} aria-label="Abrir calendário"
+            className={`grid h-10 w-10 place-items-center rounded-xl border text-lg transition ${calOpen ? "border-primary bg-primary-soft" : "bg-card"}`}>📅</button>
+          {calOpen && (
+            <div className="absolute right-0 z-20 mt-2 w-[300px] rounded-xl border bg-card p-3 shadow-lg">
+              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Escolha o dia</div>
+              <div className="grid grid-cols-7 gap-1">
+                {[0, 1, 2, 3, 4, 5, 6].map((d) => {
+                  const list = sorted.filter((s) => s.day === d);
+                  const allDone = list.length > 0 && list.every((s) => s.status === "done");
+                  const hasMissed = list.some((s) => isOverdue(state.weekStart, s, now));
+                  const selected = d === focusDay;
+                  return (
+                    <button key={d} onClick={() => { setFocus(d); setCalOpen(false); }}
+                      className={`flex flex-col items-center rounded-lg py-1.5 text-[10px] font-bold transition
+                        ${selected ? "bg-primary text-primary-foreground" : allDone ? "bg-success-soft text-success" : hasMissed ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>
+                      <span>{DAY_SHORT[d]}</span>
+                      <span className={`mt-0.5 grid h-5 w-5 place-items-center rounded-full text-[11px] ${d === todayIdx && !selected ? "ring-2 ring-primary" : ""}`}>
+                        {dateOfDay(state.weekStart, d).getDate()}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+                <Legend cls="bg-success" label="Tudo concluído" />
+                <Legend cls="bg-warning" label="Pendências" />
+                <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full ring-2 ring-primary" />Hoje</span>
+              </div>
+            </div>
+          )}
+        </div>
+      }
       footer={<PrimaryButton onClick={() => update({ step: "availability" })}>Ajustar rotina</PrimaryButton>}>
       <div className="rounded-2xl bg-gradient-primary p-4 text-primary-foreground">
         <div className="font-bold">{(totalMin / 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}h de estudo planejadas</div>
