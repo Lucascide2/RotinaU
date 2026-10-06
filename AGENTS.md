@@ -9,3 +9,4 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 - Domain logic (routine generation, stats, early/overdue rules) lives in src/lib/rotina.ts; UI state persists in localStorage. Why: keeps pure logic testable and separate from screens.
+- Calendar display offsets live in src/lib/calendar.ts. Why: presentation date windows can be tested without changing routine domain logic.
