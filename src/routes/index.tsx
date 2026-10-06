@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
   dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, generate,
-  isEarly, isOverdue, plannedAt, stats, toMin, uid, weekIndexOf, prepareWeeks, stateForDate, sessionsForDate,
+  isEarly, isOverdue, plannedAt, stats, toMin, uid, weekIndexOf, prepareWeeks, stateForDate, streakOf, sessionsForDate,
 } from "@/lib/rotina";
 import { calendarOffsets } from "@/lib/calendar";
 
