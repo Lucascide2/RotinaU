@@ -234,9 +234,9 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const focusDate = dayOffsetDate(state.weekStart, now, focusOff);
   const focusDay = (focusDate.getDay() + 6) % 7;
   const sorted = [...state.sessions].sort((a, b) => a.day - b.day || toMin(a.start) - toMin(b.start));
-  // janela de 3 dias a partir do dia focado
-  const windowDays = [focusDay, focusDay + 1, focusDay + 2].filter((d) => d < 7);
-  const days = [...new Set(sorted.map((s) => s.day))].filter((d) => windowDays.includes(d));
+  // janela de 3 dias a partir do dia focado (relativa a hoje)
+  const focusOffsets = [focusOff, focusOff + 1, focusOff + 2].filter((o) => o >= -7 && o <= 6);
+  const windowDays = focusOffsets.map((o) => (dayOffsetDate(state.weekStart, now, o).getDay() + 6) % 7);
   const totalMin = state.sessions.reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0);
   const overdue = sorted.filter((s) => isOverdue(state.weekStart, s, now));
   const pct = st.total ? Math.round((st.done / st.total) * 100) : 0;
@@ -264,28 +264,39 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
   const reorgSlot = reorgTarget ? findFreeSlot(state, reorgTarget, now) : null;
 
   return (
-    <Screen title={focusDay === todayIdx ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
-      subtitle={focusDay === todayIdx ? "Hoje e os próximos dois dias." : "Dois dias a partir do dia selecionado."}
+    <Screen title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]!.toLowerCase()}`}
+      subtitle={`${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[0]!))} a ${fmtDay(dayOffsetDate(state.weekStart, now, focusOffsets[focusOffsets.length - 1]!))} · use o calendário para mudar o dia`}
       action={
         <div className="relative">
           <button onClick={() => setCalOpen(!calOpen)} aria-label="Abrir calendário"
             className={`grid h-10 w-10 place-items-center rounded-xl border text-lg transition ${calOpen ? "border-primary bg-primary-soft" : "bg-card"}`}>📅</button>
           {calOpen && (
             <div className="absolute right-0 z-20 mt-2 w-[300px] rounded-xl border bg-card p-3 shadow-lg">
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Escolha o dia</div>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <button onClick={() => setCalOff((v) => Math.max(-7, v - 7))} disabled={calOff <= -7} aria-label="Ver os 7 dias anteriores"
+                  className="grid h-7 w-7 place-items-center rounded-lg border text-sm font-bold transition hover:bg-muted disabled:opacity-30">←</button>
+                <div className="text-center">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Escolha o dia</div>
+                  <div className="text-[10px] text-muted-foreground">{fmtDay(dayOffsetDate(state.weekStart, now, calOff))} a {fmtDay(dayOffsetDate(state.weekStart, now, calOff + 6))}</div>
+                </div>
+                <button onClick={() => setCalOff((v) => Math.min(0, v + 7))} disabled={calOff >= 0} aria-label="Voltar aos dias à frente"
+                  className="grid h-7 w-7 place-items-center rounded-lg border text-sm font-bold transition hover:bg-muted disabled:opacity-30">→</button>
+              </div>
               <div className="grid grid-cols-7 gap-1">
-                {[0, 1, 2, 3, 4, 5, 6].map((d) => {
+                {Array.from({ length: 7 }, (_, i) => calOff + i).map((o) => {
+                  const d = (dayOffsetDate(state.weekStart, now, o).getDay() + 6) % 7;
+                  const date = dayOffsetDate(state.weekStart, now, o);
                   const list = sorted.filter((s) => s.day === d);
                   const allDone = list.length > 0 && list.every((s) => s.status === "done");
                   const hasMissed = list.some((s) => isOverdue(state.weekStart, s, now));
-                  const selected = d === focusDay;
+                  const selected = o === focusOff;
                   return (
-                    <button key={d} onClick={() => { setFocus(d); setCalOpen(false); }}
+                    <button key={o} onClick={() => { setFocusOff(o); setCalOpen(false); }}
                       className={`flex flex-col items-center rounded-lg py-1.5 text-[10px] font-bold transition
                         ${selected ? "bg-primary text-primary-foreground" : allDone ? "bg-success-soft text-success" : hasMissed ? "bg-warning-soft text-warning" : "bg-muted text-muted-foreground"}`}>
                       <span>{DAY_SHORT[d]}</span>
-                      <span className={`mt-0.5 grid h-5 w-5 place-items-center rounded-full text-[11px] ${d === todayIdx && !selected ? "ring-2 ring-primary" : ""}`}>
-                        {dateOfDay(state.weekStart, d).getDate()}
+                      <span className={`mt-0.5 grid h-5 w-5 place-items-center rounded-full text-[11px] ${o === 0 && !selected ? "ring-2 ring-primary" : ""}`}>
+                        {date.getDate()}
                       </span>
                     </button>
                   );
@@ -372,10 +383,10 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
             <div className="divide-y rounded-xl border bg-card shadow-sm">
               {items.map((it, idx) =>
                 "brk" in it ? (
-                  <div key={`brk-${idx}`} className="flex items-center gap-2 bg-muted/50 px-4 py-1.5">
-                    <span className="flex-1 border-t border-dashed border-input" />
-                    <span className="text-[11px] font-semibold text-muted-foreground">☕ Pausa de {it.brk} min</span>
-                    <span className="flex-1 border-t border-dashed border-input" />
+                  <div key={`brk-${idx}`} className="flex items-center gap-2 bg-early-soft px-4 py-1.5">
+                    <span className="flex-1 border-t border-dashed border-early/30" />
+                    <span className="text-[11px] font-semibold text-early">☕ Pausa de {it.brk} min</span>
+                    <span className="flex-1 border-t border-dashed border-early/30" />
                   </div>
                 ) : (
                   <SessionRow key={it.id} s={it} state={state} now={now} name={subj(it.subjectId)} open={open === it.id}
