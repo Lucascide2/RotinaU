@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 - Domain logic (routine generation, stats, early/overdue rules) lives in src/lib/rotina.ts; UI state persists in localStorage. Why: keeps pure logic testable and separate from screens.
 - Calendar display offsets live in src/lib/calendar.ts. Why: presentation date windows can be tested without changing routine domain logic.
+- Store independent session lists in State.weeks keyed by Monday ISO, with State.sessions mirroring the current week. Why: date navigation and rollover preserve completion history without weekday aliasing.

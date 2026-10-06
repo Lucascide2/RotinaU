@@ -21,6 +21,7 @@ export type State = {
   sessions: Session[];
   weekStart: string; // ISO segunda
   dismissed: string[];
+  weeks?: Record<string, Session[]>;
 };
 
 export const DAY_NAMES = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
@@ -54,7 +55,29 @@ export const fmtDay = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${St
 export const todayIdxOf = (now: Date) => weekIndexOf(now);
 /** Data de um dia relativo a hoje (0 = hoje, -1 = ontem, 6 = daqui a 6 dias). */
 export function dayOffsetDate(weekStart: string, now: Date, offset: number) {
-  const d = dateOfDay(weekStart, todayIdxOf(now)); d.setDate(d.getDate() + offset); return d;
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate()); d.setDate(d.getDate() + offset); return d;
+}
+
+export function stateForDate(state: State, date: Date): State {
+  const weekStart = mondayOf(date).toISOString();
+  return { ...state, weekStart, sessions: weekStart === state.weekStart ? state.sessions : state.weeks?.[weekStart] ?? [] };
+}
+
+export function sessionsForDate(state: State, date: Date): Session[] {
+  return stateForDate(state, date).sessions.filter((session) => session.day === weekIndexOf(date));
+}
+
+/** Migra a semana salva, mantém histórico e prepara semanas futuras independentes. */
+export function prepareWeeks(state: State, now: Date): State {
+  const weeks = { ...state.weeks, [state.weekStart]: withSessionGaps(state.sessions) };
+  const current = mondayOf(now).toISOString();
+  const hasPlan = Object.values(weeks).some((sessions) => sessions.length > 0);
+  if (!weeks[current]) weeks[current] = hasPlan ? generate(state.days, state.subjects, state.duration) : [];
+  const next = new Date(now); next.setDate(next.getDate() + 7);
+  const nextWeek = mondayOf(next).toISOString();
+  if (hasPlan && !weeks[nextWeek]) weeks[nextWeek] = generate(state.days, state.subjects, state.duration);
+  return { ...state, weekStart: current, sessions: weeks[current] ?? [], weeks,
+    dismissed: current === state.weekStart ? state.dismissed : [] };
 }
 
 export function isEarly(weekStart: string, s: Session) {

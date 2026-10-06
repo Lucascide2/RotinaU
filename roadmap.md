@@ -1,5 +1,9 @@
 # Roadmap
 
+- [x] Separar sessões por semana e preservar histórico existente
+- [x] Selecionar e apresentar datas reais no calendário e na rotina
+- [x] Testar conclusão independente, cores e troca de semana
+
 - [x] Tela de rotina: mostrar apenas dia atual + 2 próximos dias
 - [x] Calendário: hoje + sete dias à frente, ou sete dias anteriores + hoje, em uma linha horizontal
 - [x] Remover linhas de pausa e aplicar cinco minutos entre sessões mantendo a duração
