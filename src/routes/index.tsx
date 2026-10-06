@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DAY_NAMES, DAY_SHORT, PRIORITY_LABEL, type Priority, type Session, type State,
   dateOfDay, dayOffsetDate, defaultState, fmtDate, fmtDay, generate,
-  isEarly, isOverdue, plannedAt, stats, toMin, uid, weekIndexOf, prepareWeeks, stateForDate, sessionsForDate,
+  isEarly, isOverdue, plannedAt, stats, toMin, uid, weekIndexOf, prepareWeeks, stateForDate, streakOf, sessionsForDate,
 } from "@/lib/rotina";
 import { calendarOffsets } from "@/lib/calendar";
 
@@ -167,11 +167,16 @@ function Subjects({ state, update }: { state: State; update: (p: Partial<State>)
   const setSub = (id: string, p: Partial<State["subjects"][number]>) =>
     update({ subjects: state.subjects.map((s) => (s.id === id ? { ...s, ...p } : s)) });
   const add = () => { const id = uid(); update({ subjects: [...state.subjects, { id, name: "Nova disciplina", priority: "media" }] }); setEditing(id); };
-  const gen = () => update({ step: "routine", dismissed: [], sessions: generate(state.days, state.subjects.filter((s) => s.name.trim()), state.duration) });
+  const valid = state.subjects.filter((s) => s.name.trim());
+  const preview = generate(state.days, valid, state.duration);
+  const gen = () => { if (preview.length) update({ step: "routine", dismissed: [], sessions: preview }); };
   return (
     <Screen title="Disciplinas e prioridades" subtitle="Adicione as disciplinas e indique onde precisa dedicar mais esforço."
       onBack={() => update({ step: "availability" })}
-      footer={<PrimaryButton disabled={!state.subjects.length} onClick={gen}>{state.sessions.length ? "Gerar novo planejamento" : "Gerar planejamento"}</PrimaryButton>}>
+      footer={<>
+        {!preview.length && <p className="mb-2 text-center text-xs text-destructive">Nenhuma sessão cabe na semana. Adicione uma disciplina ou aumente algum horário disponível.</p>}
+        <PrimaryButton disabled={!preview.length} onClick={gen}>{state.sessions.length ? "Gerar novo planejamento" : "Gerar planejamento"}</PrimaryButton>
+      </>}>
       {state.subjects.map((s) => (
         <Card key={s.id}>
           <div className="flex items-start justify-between gap-2">
@@ -327,8 +332,8 @@ function Routine({ state, update, now }: { state: State; update: (p: Partial<Sta
 
       <div className="grid grid-cols-3 gap-2">
         <Stat value={st.days} label="dias estudados" ring />
-        <Stat value={st.streak} label="dias seguidos" flame />
         <Stat value={st.missed} label="não realizadas" warn />
+        <Stat value={streakOf(state, now)} label="dias seguidos" flame />
       </div>
 
       {suggestion && (

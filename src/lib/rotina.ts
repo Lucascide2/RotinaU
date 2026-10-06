@@ -189,6 +189,30 @@ export function findFreeSlot(state: State, s: Session, now = new Date()) {
   return { day: sl.day, start: toTime(sl.start), end: toTime(sl.end) };
 }
 
+/** Dia cumprido: todas as sessões planejadas daquele dia concluídas no próprio dia. */
+function dayFulfilled(state: State, date: Date): boolean | null {
+  const list = sessionsForDate(state, date);
+  if (!list.length) return null; // dia sem sessões não conta nem quebra
+  return list.every((s) => s.status === "done" && !!s.completedAt && dayKey(new Date(s.completedAt)) === dayKey(date));
+}
+
+/** Dias seguidos: incrementa a cada dia cumprido; zera se o dia anterior não foi cumprido. */
+export function streakOf(state: State, now = new Date()) {
+  let streak = 0;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (dayFulfilled(state, today) === true) streak++;
+  const cur = new Date(today);
+  for (let i = 0; i < 366; i++) {
+    cur.setDate(cur.getDate() - 1);
+    const ok = dayFulfilled(state, cur);
+    if (ok === false) break;
+    if (ok === true) streak++;
+    if (ok === null && !Object.values(state.weeks ?? {}).some((w) => w.length) && !state.sessions.length) break;
+    if (cur < new Date(today.getTime() - 60 * 86400000) && ok === null) break;
+  }
+  return streak;
+}
+
 export function stats(state: State, now = new Date()) {
   const done = state.sessions.filter((s) => s.status === "done");
   const early = done.filter((s) => isEarly(state.weekStart, s));
