@@ -9,6 +9,7 @@ import {
   DAY_SHORT,
   type Session,
   type State,
+  allWeeks,
   canSuggestIncrease,
   dateOfDay,
   dayOffsetDate,
@@ -16,6 +17,7 @@ import {
   fmtDay,
   fmtHours,
   generate,
+  historyFor,
   isEarly,
   isOverdue,
   plannedAt,
@@ -30,6 +32,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react-native";
 import { calendarOffsets } from "../lib/calendar";
 import { colors, fonts, radius } from "../theme/colors";
 import { withAlpha } from "../theme/alpha";
+import { generateSafe } from "@/lib/rotina-ai";
 
 type Props = { state: State; update: (p: Partial<State>) => void; now: Date };
 
@@ -39,6 +42,7 @@ export function RoutineScreen({ state, update, now }: Props) {
   const [calOpen, setCalOpen] = useState(false);
   const [calOff, setCalOff] = useState(0); // início da janela do calendário
   const [selOff, setSelOff] = useState(0); // dia marcado como selecionado
+  const [busy, setBusy] = useState(false);
 
   const subj = (id: string) => state.subjects.find((s) => s.id === id)?.name ?? "Disciplina removida";
   const focusDate = dayOffsetDate(state.weekStart, now, focusOff);
@@ -93,17 +97,34 @@ export function RoutineScreen({ state, update, now }: Props) {
     if (!at || now.getTime() - at.getTime() >= 14 * 86400000) update({ upShownAt: now.toISOString() });
   }, [showingUp]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const applyDuration = (to: number) => {
-    const kept = viewState.sessions.filter((s) => s.status === "done" || plannedAt(viewState.weekStart, s) <= now);
+
+const applyDuration = async (to: number) => {
+  if (busy) return;
+  setBusy(true);
+  try {
+    const target = viewState.weekStart;
+    const kept = viewState.sessions.filter((s) => s.status === "done" || plannedAt(target, s) <= now);
     const blocked = kept.map((s) => ({ day: s.day, start: toMin(s.start), end: toMin(s.end) }));
-    const fresh = generate(state.days, state.subjects, to, blocked, now, viewState.weekStart);
+    const { sessions: fresh, source } = await generateSafe({
+      days: state.days,
+      subjects: state.subjects,
+      duration: to,
+      blocked,
+      after: now,
+      weekStart: target,
+      now,
+      history: historyFor(allWeeks(state), target, kept),
+    });
     const sessions = [...kept, ...fresh];
     update({
       duration: to,
-      weeks: { ...state.weeks, [viewState.weekStart]: sessions },
-      ...(viewState.weekStart === state.weekStart ? { sessions } : {}),
+      weeks: { ...state.weeks, [target]: sessions },
+      ...(target === state.weekStart ? { sessions } : {}),
     });
-  };
+  } finally {
+    setBusy(false);
+  }
+};
 
   const pickDay = (o: number) => {
     setSelOff(o);

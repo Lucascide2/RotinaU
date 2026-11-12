@@ -251,29 +251,45 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const PROTECTED_DAYS_AHEAD = 7;
 
 const overlaps = (a: Session, b: Session) =>
-  a.day === b.day && a.start < b.end && b.start < a.end;
+  a.day === b.day &&
+  toMin(a.start) < toMin(b.end) + SESSION_GAP &&
+  toMin(b.start) < toMin(a.end) + SESSION_GAP;
+
+export type Replan = {
+  sessions: Session[];
+  weeks: Record<string, Session[]>;
+  weekStart: string;
+};
 
 export function replanFromToday(
   state: State,
   fresh: Session[],
-  now = new Date()
-): Pick<State, "sessions" | "weeks" | "weekStart"> {
+  now = new Date(),
+): Replan {
+  // ...corpo igual
   const current = mondayOf(now).toISOString();
   const today = weekIndexOf(now);
   const lastProtectedOffset = today + PROTECTED_DAYS_AHEAD;
 
   const old = state.weeks?.[current] ?? (state.weekStart === current ? state.sessions : []);
 
-  // Semana atual: mantém todo o passado e as sessões já realizadas de hoje em diante.
-  const kept = old.filter((s) => s.day < today || s.status === "done");
-  const freshCurrent = fresh.filter(
-    (s) => s.day >= today && !kept.some((k) => overlaps(k, s))
+  // Mantém: dias passados, realizadas, e o que de hoje já passou do horário.
+  const kept = old.filter(
+    (s) =>
+      s.day < today ||
+      s.status === "done" ||
+      (s.day === today && plannedAt(current, s) <= now)
   );
+  const freshCurrent = fresh.filter(
+    (s) =>
+      (s.day > today || (s.day === today && plannedAt(current, s) > now)) &&
+      !kept.some((k) => overlaps(k, s)),
+  );
+
   const sessions = [...kept, ...freshCurrent];
 
   const weeks: Record<string, Session[]> = { ...state.weeks, [current]: sessions };
 
-  // Semanas futuras: replaneja, mas preserva as realizadas dentro da janela de 7 dias.
   for (const key of Object.keys(weeks)) {
     if (new Date(key) <= new Date(current)) continue;
 
@@ -289,4 +305,37 @@ export function replanFromToday(
   }
 
   return { sessions, weeks, weekStart: current };
+}
+
+/** ISO da segunda-feira `n` semanas depois (ou antes, se negativo) de `weekStart`. */
+export function shiftWeek(weekStart: string, n: number) {
+  const d = new Date(weekStart);
+  d.setDate(d.getDate() + 7 * n); // setDate mantém a meia-noite local, mesmo com horário de verão
+  return d.toISOString();
+}
+
+/** Todas as semanas conhecidas, incluindo a que está em `state.sessions`. */
+export const allWeeks = (state: State): Record<string, Session[]> => ({
+  ...state.weeks,
+  [state.weekStart]: state.sessions,
+});
+
+/** Monta o `history` (anterior, alvo, seguinte). `override` substitui a semana alvo. */
+export function historyFor(
+  weeks: Record<string, Session[]>,
+  weekStart: string,
+  override?: Session[],
+) {
+  return [-1, 0, 1].map((n) => {
+    const key = shiftWeek(weekStart, n);
+    return { weekStart: key, sessions: n === 0 && override ? override : weeks[key] ?? [] };
+  });
+}
+
+/** True se existe plano, mas falta a semana atual ou a seguinte. */
+export function needsWeeks(state: State, now: Date): boolean {
+  const weeks = allWeeks(state);
+  if (!Object.values(weeks).some((s) => s.length > 0)) return false;
+  const current = mondayOf(now).toISOString();
+  return !weeks[current] || !weeks[shiftWeek(current, 1)];
 }

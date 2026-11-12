@@ -3,8 +3,9 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Card, PrimaryButton, Screen } from "./ui";
-import { PRIORITY_LABEL, generate, replanFromToday, uid, type Priority, type State } from "../lib/rotina";
+import { PRIORITY_LABEL, allWeeks, buildSlots, generate, historyFor, mondayOf, replanFromToday, shiftWeek, uid, type Priority, type State } from "../lib/rotina";
 import { colors, fonts, radius } from "../theme/colors";
+import { generateSafe, generateWithLLM } from "@/lib/rotina-ai";
 
 type Props = { state: State; update: (p: Partial<State>) => void };
 
@@ -24,15 +25,49 @@ export function SubjectsScreen({ state, update }: Props) {
   };
 
   const valid = state.subjects.filter((s) => s.name.trim());
-  const preview = generate(state.days, valid, state.duration);
-
-  const gen = () => {
-    if (!preview.length) return;
-    update({
-      step: "routine",
-      dismissed: [],
-      ...(state.sessions.length || state.weeks ? replanFromToday(state, preview, new Date()) : { sessions: preview }),
-    });
+  const [busy, setBusy] = useState(false);
+  const canGenerate = valid.length > 0 && buildSlots(state.days, state.duration).length > 0;
+  
+  const gen = async () => {
+    if (!canGenerate || busy) return;
+    setBusy(true);
+    try {
+      const now = new Date();
+      const weekStart = mondayOf(now).toISOString();
+      const nextKey = shiftWeek(weekStart, 1);
+  
+      const { sessions: fresh, source } = await generateSafe({
+        days: state.days,
+        subjects: valid,
+        duration: state.duration,
+        weekStart,
+        now,
+        history: historyFor(allWeeks(state), weekStart),
+      });
+      if (!fresh.length) return;
+  
+      const patch =
+        state.sessions.length || state.weeks
+          ? replanFromToday(state, fresh, now)
+          : { sessions: fresh, weeks: { [weekStart]: fresh }, weekStart };
+  
+      let weeks = patch.weeks;
+      if (!weeks[nextKey]) {
+        const { sessions: next } = await generateSafe({
+          days: state.days,
+          subjects: valid,
+          duration: state.duration,
+          weekStart: nextKey,
+          now,
+          history: historyFor(weeks, nextKey),
+        });
+        weeks = { ...weeks, [nextKey]: next };
+      }
+  
+      update({ step: "routine", dismissed: [], ...patch, weeks });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -42,13 +77,17 @@ export function SubjectsScreen({ state, update }: Props) {
       onBack={() => update({ step: "availability" })}
       footer={
         <>
-          {!preview.length ? (
+          {!canGenerate ? (
             <Text style={styles.footerError}>
               Nenhuma sessão cabe na semana. Adicione uma disciplina ou aumente algum horário disponível.
             </Text>
           ) : null}
-          <PrimaryButton disabled={!preview.length} onPress={gen}>
-            {state.sessions.length ? "Gerar novo planejamento" : "Gerar planejamento"}
+          <PrimaryButton disabled={!canGenerate || busy} onPress={gen}>
+            {busy
+              ? "Gerando…"
+              : state.sessions.length
+                ? "Gerar novo planejamento"
+                : "Gerar planejamento"}
           </PrimaryButton>
         </>
       }

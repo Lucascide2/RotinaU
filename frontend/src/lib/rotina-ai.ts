@@ -1,11 +1,16 @@
 import {
     PRIORITY_WEIGHT,
     SESSION_GAP,
+    State,
     buildSlots,
     generate,
+    historyFor,
+    mondayOf,
     plannedAt,
+    shiftWeek,
     toTime,
     uid,
+    withSessionGaps,
     type Day,
     type Session,
     type Slot,
@@ -19,7 +24,7 @@ import {
   // IMPORTANTE: nunca coloque a chave da API no app. Este endpoint deve ser um
   // proxy seu (Edge Function, Worker, backend...) que repassa o corpo para
   // https://api.anthropic.com/v1/messages adicionando a chave no servidor.
-  const LLM_ENDPOINT = process.env.EXPO_PUBLIC_LLM_ENDPOINT ?? "";
+  const LLM_ENDPOINT = "http://localhost:3000/api/chat";
   const LLM_MODEL = "gemini-3.1-flash-lite";
   const LLM_TIMEOUT_MS = 25_000;
   const HISTORY_WINDOW_DAYS = 7;
@@ -187,7 +192,10 @@ import {
   async function callLLM(endpoint: string, userContent: string, maxTokens: number, signal?: AbortSignal) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-    const onAbort = () => controller.abort();
+    const onAbort = () => {
+      controller.abort();
+    }
+
     signal?.addEventListener("abort", onAbort);
   
     try {
@@ -201,7 +209,8 @@ import {
           messages: [{ role: "user", content: userContent }],
         }),
         signal: controller.signal,
-      });
+      });  
+
       if (!res.ok) throw new Error(`LLM HTTP ${res.status}`);
       const data = (await res.json()) as { content?: { type: string; text?: string }[] };
       return (data.content ?? [])
@@ -286,6 +295,7 @@ import {
       });
   
       const content = buildUserPayload(now, subjects, stats, entries, slotPayload);
+      console.log("Chamou a LLM 1")
       const text = await callLLM(endpoint, content, Math.min(8000, 400 + slots.length * 40), signal);
   
       // 3) Validação
@@ -315,5 +325,56 @@ import {
       if (signal?.aborted) throw err; // cancelamento pedido pelo chamador
       console.warn("[rotina-ai] falha na LLM, usando algoritmo padrão:", err);
       return fallback();
+    }
+  }
+
+  function withTimeout(parent: AbortSignal | undefined, ms: number) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    parent?.addEventListener("abort", () => ctrl.abort());
+    return { signal: ctrl.signal, done: () => clearTimeout(timer) };
+  }
+  
+  
+  export async function prepareWeeksLLM(state: State, now: Date, parent?: AbortSignal): Promise<State> {
+    const current = mondayOf(now).toISOString();
+    const nextWeek = shiftWeek(current, 1);
+    const weeks = { ...state.weeks, [state.weekStart]: withSessionGaps(state.sessions) };
+    const hasPlan = Object.values(weeks).some((s) => s.length > 0);
+  
+    const make = async (weekStart: string) =>
+      (await generateSafe({
+        days: state.days,
+        subjects: state.subjects,
+        duration: state.duration,
+        weekStart,
+        now,
+        signal: parent,
+        history: historyFor(weeks, weekStart),
+      })).sessions;
+  
+    if (!weeks[current]) weeks[current] = hasPlan ? await make(current) : [];
+    if (hasPlan && !weeks[nextWeek]) weeks[nextWeek] = await make(nextWeek);
+  
+    return {
+      ...state, weekStart: current, sessions: weeks[current] ?? [], weeks,
+      dismissed: current === state.weekStart ? state.dismissed : [],
+    };
+  }
+
+  /** generateWithLLM com timeout; em erro ou timeout cai no generate determinístico. */
+  export async function generateSafe(opts: GenerateOptions): Promise<GenerateResult> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), LLM_TIMEOUT_MS);
+    opts.signal?.addEventListener("abort", () => ctrl.abort());
+    try {
+      return await generateWithLLM({ ...opts, signal: ctrl.signal });
+    } catch {
+      return {
+        sessions: generate(opts.days, opts.subjects, opts.duration, opts.blocked, opts.after, opts.weekStart),
+        source: "fallback",
+      };
+    } finally {
+      clearTimeout(timer);
     }
   }
