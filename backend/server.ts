@@ -8,6 +8,8 @@ import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langc
 import { assertAuthConfig, cleanupExpired } from "./auth-service";
 import { authRouter } from "./auth-routes";
 import { requireAuth } from "./require-auth";
+import { requireChatAccess } from "./require-chat-access";
+import { premiumRouter } from "./premium-routes";
 
 /* -------------------------------------------------------------------------- */
 /*                                Configuração                                */
@@ -192,13 +194,14 @@ app.use(express.json({ limit: "100kb" }));
 // Cadastro, login, refresh e logout
 app.use("/api/auth", authRouter);
 
-// Ordem: origem (barato) → autenticação → limite por usuário → teto global → handler.
-// O requireAuth vem antes dos limitadores para que requisições sem token válido
-// não consumam a cota de ninguém.
+// Ordem: origem (barato) → autenticação → permissão → limite por usuário → teto global → handler.
+// Autenticação e permissão vêm antes dos limitadores para que requisições sem token válido,
+// ou de quem não tem acesso ao chat, não consumam a cota de ninguém.
 app.post(
   "/api/chat",
   requireAllowedOrigin,
-  requireAuth,
+  requireAuth, // quem é você? (JWT válido)
+  requireChatAccess, // você pode usar o chat? (permissão no banco)
   userDailyLimiter,
   globalDailyLimiter,
   async (req: Request, res: Response) => {
@@ -226,6 +229,8 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
   res.status(400).json({ error: "Requisição inválida." });
 });
+
+app.use("/api/premium", premiumRouter);
 
 // Limpeza horária de refresh tokens expirados e tentativas de login antigas
 setInterval(() => cleanupExpired().catch(console.error), 60 * 60 * 1000).unref();

@@ -26,3 +26,15 @@ export async function findUserByEmail(email: string): Promise<UserWithHash | nul
   );
   return rows[0] ?? null;
 }
+
+export type UserPermissions = { llm_enabled: boolean };
+
+/**
+ * Permissões atuais do usuário, lidas do banco a cada chamada (e não do JWT),
+ * para que liberar ou revogar o acesso valha na hora, sem esperar o token expirar.
+ * Retorna null se o usuário não existe mais.
+ */
+export async function getUserPermissions(userId: string): Promise<UserPermissions | null> {
+  const { rows } = await pool.query<UserPermissions>(`SELECT llm_enabled FROM users WHERE id = $1`, [userId]);
+  return rows[0] ?? null;
+}

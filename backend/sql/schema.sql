@@ -37,3 +37,26 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   created_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS login_attempts_email_idx ON login_attempts (email, created_at DESC);
+
+-- Um convite por usuário. Guardamos só o hash; o código em texto vai para o codigos.txt.
+CREATE TABLE IF NOT EXISTS premium_invites (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid        NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  code_hash    text        NOT NULL,
+  redeemed_at  timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+-- Tentativas de resgate, por usuário (base do rate limit de 10 tentativas).
+CREATE TABLE IF NOT EXISTS premium_redeem_attempts (
+  id          bigserial   PRIMARY KEY,
+  user_id     uuid        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip          text        NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS premium_redeem_attempts_idx
+  ON premium_redeem_attempts (user_id, created_at DESC);
+
+-- Permissão de uso do chat (Gemini). Nega por padrão: o acesso é concedido a cada usuário.
+-- Funciona tanto em banco novo quanto em um que já tinha a tabela users.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS llm_enabled boolean NOT NULL DEFAULT false;

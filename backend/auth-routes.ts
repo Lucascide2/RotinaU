@@ -12,6 +12,7 @@ import {
   revokeSession,
 } from "./auth-service";
 import { requireAuth } from "./require-auth";
+import { createInviteForUser } from "./invites";
 
 export const authRouter = Router();
 
@@ -78,14 +79,22 @@ function sendError(res: Response, e: unknown) {
 
 /* ---------- Rotas ---------- */
 
-// POST /api/auth/register  { name, email, password }  ->  { token, refreshToken, user }
 authRouter.post("/register", credentialsLimiter, async (req: Request, res: Response) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ erro: parsed.error.issues[0].message });
 
   try {
     const { name, email, password } = parsed.data;
-    return res.status(201).json(await registerUser(name, email, password));
+    const result = await registerUser(name, email, password);
+
+    // Falha ao gerar o convite não deve derrubar o cadastro já concluído.
+    try {
+      await createInviteForUser(result.user.id, name); // ajuste se o retorno tiver outro formato
+    } catch (e) {
+      console.error("[register] falha ao criar convite premium:", e);
+    }
+
+    return res.status(201).json(result); // o código NUNCA volta na resposta
   } catch (e) {
     return sendError(res, e);
   }
