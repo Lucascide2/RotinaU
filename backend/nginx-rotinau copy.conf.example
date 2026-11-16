@@ -1,0 +1,41 @@
+# /etc/nginx/sites-available/rotinau
+# Troque api.seudominio.com pelo seu domínio e 3000 pela porta (PORT) da sua API.
+#
+# Este arquivo começa só com a porta 80. Depois de rodar
+#   sudo certbot --nginx -d api.seudominio.com
+# o certbot acrescenta sozinho o bloco 443 (certificado + TLS) e o redirecionamento
+# de HTTP para HTTPS. Veja no final o que adicionar depois disso.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.seudominio.com;
+
+    # O Node já limita o corpo a 100kb; aqui o Nginx barra antes de chegar nele
+    client_max_body_size 200k;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        # SOBRESCREVE o header com o IP real da conexão. Não use $proxy_add_x_forwarded_for:
+        # ele preserva o valor que o cliente enviou, e o cliente pode forjá-lo.
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Chamadas ao Gemini podem demorar (o padrão do Nginx é 60s)
+        proxy_read_timeout 90s;
+    }
+}
+
+# ---------------------------------------------------------------------------
+# DEPOIS do certbot, dentro do bloco "listen 443 ssl" que ele criou, adicione:
+#
+#     add_header Strict-Transport-Security "max-age=300" always;
+#
+# max-age=300 (5 min) é só para testar. Com tudo funcionando, suba para 31536000 (1 ano).
+# O HSTS faz os navegadores recusarem HTTP puro para este domínio, e o navegador guarda
+# isso pelo tempo informado; por isso comece pequeno.
+# ---------------------------------------------------------------------------

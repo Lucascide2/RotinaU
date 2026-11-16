@@ -1,3 +1,4 @@
 .env
 comandos.txt
 node_modules
+nginx-rotinau.conf
