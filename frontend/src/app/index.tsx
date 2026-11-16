@@ -15,6 +15,8 @@ import { prepareWeeksLLM } from "@/lib/rotina-ai";
 
 const KEY = "rotinau-v1";
 
+
+
 export default function Index() {
   const [state, setState] = useState<State | null>(null);
   const [now, setNow] = useState(() => new Date());

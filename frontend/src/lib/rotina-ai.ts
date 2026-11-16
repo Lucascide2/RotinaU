@@ -16,6 +16,8 @@ import {
     type Slot,
     type Subject,
   } from "./rotina";
+
+  import { apiFetch } from "../lib/auth";
   
   /* -------------------------------------------------------------------------- */
   /*                                Configuração                                */
@@ -199,7 +201,7 @@ import {
     signal?.addEventListener("abort", onAbort);
   
     try {
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

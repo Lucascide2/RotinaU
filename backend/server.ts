@@ -5,13 +5,23 @@ import { rateLimit } from "express-rate-limit";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 
+import { assertAuthConfig, cleanupExpired } from "./auth-service";
+import { authRouter } from "./auth-routes";
+import { requireAuth } from "./require-auth";
+
 /* -------------------------------------------------------------------------- */
 /*                                Configuração                                */
 /* -------------------------------------------------------------------------- */
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
-const DAILY_LIMIT = 15;
+const DAILY_LIMIT = 15; // por usuário
+const GLOBAL_DAILY_LIMIT = Number(process.env.GLOBAL_DAILY_LIMIT ?? 500); // teto somando todos os usuários
 const PORT = Number(process.env.PORT ?? 3000);
+// Em produção atrás do Nginx, use HOST=127.0.0.1: o Node deixa de ser acessível direto
+// pela internet (que contornaria o HTTPS e permitiria forjar o IP via X-Forwarded-For).
+// Em desenvolvimento, o padrão aceita conexões da rede local (celular via Expo).
+const HOST = process.env.HOST ?? "0.0.0.0";
+const TRUST_PROXY = Number(process.env.TRUST_PROXY ?? 0); // nº de proxies à frente do servidor (0 = nenhum)
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
 const MAX_OUTPUT_TOKENS = 8192;
 
@@ -21,6 +31,9 @@ if (!API_KEY) {
   console.error("Defina GOOGLE_API_KEY no arquivo .env");
   process.exit(1);
 }
+
+// Falha logo na partida se faltar JWT_SECRET (mínimo de 32 caracteres).
+assertAuthConfig();
 
 /* -------------------------------------------------------------------------- */
 /*                                    Tipos                                   */
@@ -118,25 +131,41 @@ function parseBody(raw: unknown): ChatBody | null {
 /*                                Middlewares                                 */
 /* -------------------------------------------------------------------------- */
 
-// Rejeita (403) qualquer requisição cuja origem não seja a permitida.
-// Fica ANTES do limitador para que requisições barradas não consumam a cota.
+// Rejeita (403) requisições vindas de um navegador cuja origem não seja a permitida.
+// Apps nativos (iOS/Android) não enviam o header Origin, então passam por aqui;
+// quem protege a rota de verdade é o requireAuth (o Origin é só um filtro extra,
+// pois qualquer cliente fora do navegador consegue forjá-lo).
 function requireAllowedOrigin(req: Request, res: Response, next: NextFunction) {
-  if (req.get("origin") !== ALLOWED_ORIGIN) {
+  const origin = req.get("origin");
+  if (origin && origin !== ALLOWED_ORIGIN) {
     res.status(403).json({ error: "Origem não permitida." });
     return;
   }
   next();
 }
 
-// Limite de 15 requisições por dia, compartilhado por todos (chave fixa "global").
+// Limite diário POR USUÁRIO (chave = id do usuário autenticado).
+// Precisa vir DEPOIS do requireAuth, que é quem preenche res.locals.userId.
 // Janela fixa de 24h a partir da primeira requisição; o contador fica em memória.
-const dailyLimiter = rateLimit({
+const userDailyLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
   limit: DAILY_LIMIT,
-  keyGenerator: () => "global",
+  keyGenerator: (_req, res) => res.locals.userId as string,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: `Limite de ${DAILY_LIMIT} requisições por dia atingido. Tente novamente mais tarde.` },
+});
+
+// Teto global diário (chave fixa "global"): protege a cota e o custo do Gemini
+// mesmo que existam muitos usuários. Fica depois do limite por usuário para que
+// quem já estourou a própria cota não gaste o teto de todo mundo.
+const globalDailyLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  limit: GLOBAL_DAILY_LIMIT,
+  keyGenerator: () => "global",
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "O serviço atingiu o limite diário de uso. Tente novamente mais tarde." },
 });
 
 /* -------------------------------------------------------------------------- */
@@ -145,34 +174,52 @@ const dailyLimiter = rateLimit({
 
 const app = express();
 
-// CORS: o navegador só aceita respostas para a origem permitida (e responde ao preflight)
+// Atrás de proxy (Render, Railway, Nginx...) defina TRUST_PROXY=1 no .env,
+// senão o servidor enxerga o IP do proxy e o bloqueio de login por IP fica errado.
+if (TRUST_PROXY > 0) app.set("trust proxy", TRUST_PROXY);
+
+// CORS: o navegador só aceita respostas para a origem permitida (e responde ao preflight).
+// "Authorization" precisa estar liberado, senão o navegador bloqueia o token no preflight.
 app.use(
   cors({
     origin: ALLOWED_ORIGIN,
     methods: ["POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 app.use(express.json({ limit: "100kb" }));
 
-app.post("/api/chat", requireAllowedOrigin, dailyLimiter, async (req: Request, res: Response) => {
-  console.log("Enviou para a rota correta")
+// Cadastro, login, refresh e logout
+app.use("/api/auth", authRouter);
 
-  const body = parseBody(req.body);
-  if (!body) {
-    res.status(400).json({ error: "Corpo inválido. Envie { messages: [{ role, content }], system?, max_tokens? }." });
-    return;
-  }
+// Ordem: origem (barato) → autenticação → limite por usuário → teto global → handler.
+// O requireAuth vem antes dos limitadores para que requisições sem token válido
+// não consumam a cota de ninguém.
+app.post(
+  "/api/chat",
+  requireAllowedOrigin,
+  requireAuth,
+  userDailyLimiter,
+  globalDailyLimiter,
+  async (req: Request, res: Response) => {
+    console.log("Enviou para a rota correta")
 
-  try {
-    const text = await callGemini(body, API_KEY);
-    // Mesmo formato de resposta esperado pelo app: { content: [{ type: "text", text }] }
-    res.json({ content: [{ type: "text", text }] });
-  } catch (err) {
-    console.error("[/api/chat] erro ao chamar o Gemini:", err);
-    res.status(502).json({ error: "Falha ao chamar o modelo." });
-  }
-});
+    const body = parseBody(req.body);
+    if (!body) {
+      res.status(400).json({ error: "Corpo inválido. Envie { messages: [{ role, content }], system?, max_tokens? }." });
+      return;
+    }
+
+    try {
+      const text = await callGemini(body, API_KEY);
+      // Mesmo formato de resposta esperado pelo app: { content: [{ type: "text", text }] }
+      res.json({ content: [{ type: "text", text }] });
+    } catch (err) {
+      console.error("[/api/chat] erro ao chamar o Gemini:", err);
+      res.status(502).json({ error: "Falha ao chamar o modelo." });
+    }
+  },
+);
 
 // Erros de parse do JSON etc.
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
@@ -180,6 +227,9 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(400).json({ error: "Requisição inválida." });
 });
 
-app.listen(PORT, () => {
-  console.log(`API em http://localhost:${PORT} (origem permitida: ${ALLOWED_ORIGIN})`);
+// Limpeza horária de refresh tokens expirados e tentativas de login antigas
+setInterval(() => cleanupExpired().catch(console.error), 60 * 60 * 1000).unref();
+
+app.listen(PORT, HOST, () => {
+  console.log(`API em http://${HOST}:${PORT} (origem permitida: ${ALLOWED_ORIGIN})`);
 });

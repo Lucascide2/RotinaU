@@ -1,12 +1,4 @@
 // app/_layout.tsx
-import { useEffect, useState } from "react";
-import { StatusBar } from "expo-status-bar";
-import { Stack, useRouter, type ErrorBoundaryProps } from "expo-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useFonts } from "expo-font";
-import * as SplashScreen from "expo-splash-screen";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,
@@ -14,9 +6,20 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from "@expo-google-fonts/plus-jakarta-sans";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useFonts } from "expo-font";
+import { Stack, useRouter, type ErrorBoundaryProps } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { AuthProvider, useAuth } from "@/components/auth-context";
+import { LoginScreen } from "@/components/login-screen";
+import { RegisterScreen } from "@/components/register-screen";
+import { installGlobalErrorHandlers, reportError } from "../lib/error-reporting";
 import { colors, fonts, radius } from "../theme/colors";
-import { reportError, installGlobalErrorHandlers } from "../lib/error-reporting";
 
 
 
@@ -66,9 +69,33 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
+<AuthProvider>
+  <RootLayout />
+</AuthProvider>
+
+// Fica dentro do AuthProvider, senão useAuth() falha.
+function RootNavigator() {
+  const { ready, isAuthenticated } = useAuth();
+
+  if (!ready) return null; // token salvo ainda sendo lido
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      {/* Só acessível logado */}
+      <Stack.Protected guard={isAuthenticated}>
+        <Stack.Screen name="index" />
+      </Stack.Protected>
+
+      {/* Só acessível deslogado */}
+      <Stack.Protected guard={!isAuthenticated}>
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+      </Stack.Protected>
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
-  // Equivalente ao `new QueryClient()` do router.tsx.
-  // useState garante uma única instância durante o ciclo de vida do app.
   const [queryClient] = useState(() => new QueryClient());
 
   const [fontsLoaded, fontError] = useFonts({
@@ -80,25 +107,23 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
+    if (fontsLoaded || fontError) SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
-    return null;
-  }
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <StatusBar style="dark" />
-        {/* Equivalente ao <Outlet />: as rotas filhas renderizam aqui. */}
-        <Stack screenOptions={{ headerShown: false }} />
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );
 }
+
 
 const styles = StyleSheet.create({
   center: {
