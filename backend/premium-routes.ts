@@ -35,6 +35,7 @@ premiumRouter.post("/redeem", requireAuth, async (req: Request, res: Response) =
 
 // GET /api/premium/status  ->  { premium: boolean }  (para o app esconder/mostrar a coroa)
 premiumRouter.get("/status", requireAuth, async (_req: Request, res: Response) => {
+
   const perms = await getUserPermissions(res.locals.userId as string);
   if (!perms) return res.status(401).json({ error: "Sessão inválida. Entre novamente." });
   return res.json({ premium: perms.llm_enabled });

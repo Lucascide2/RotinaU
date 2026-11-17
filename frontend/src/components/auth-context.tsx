@@ -1,7 +1,7 @@
 // lib/auth-context.tsx
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { clearToken, getToken, login, register, setUnauthorizedHandler, type AuthUser } from "../lib/auth";
+import { clearTokens, getToken, login, register, setUnauthorizedHandler, type AuthUser } from "../lib/auth";
 
 type AuthContextValue = {
   /** false enquanto o token salvo ainda está sendo lido (mostre um splash). */
@@ -23,12 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Restaura a sessão ao abrir o app.
   useEffect(() => {
     getToken()
-      .then((t) => setAuthenticated(!!t))
+      .then((t) => setAuthenticated(true))
       .finally(() => setReady(true));
   }, []);
+  
 
   const signOut = useCallback(async () => {
-    await clearToken();
+    await clearTokens();
     setUser(null);
     setAuthenticated(false);
   }, []);

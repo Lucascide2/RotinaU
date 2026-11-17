@@ -62,7 +62,6 @@ export async function callGemini(body: ChatBody, apiKey: string): Promise<string
   }
 
   const response = await llm.invoke(messages);
-  console.log(response.content)
 
   // `content` pode ser string ou lista de partes
   if (typeof response.content === "string") return response.content;

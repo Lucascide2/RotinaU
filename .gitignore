@@ -43,3 +43,5 @@ frontend/android/
 
 backend/node_modules
 backend/.env
+backend/comandos.txt
+backend/nginx-rotinau.conf
