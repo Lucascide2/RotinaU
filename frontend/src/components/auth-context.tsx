@@ -1,6 +1,6 @@
 // lib/auth-context.tsx
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { clearTokens, getToken, login, register, setUnauthorizedHandler, type AuthUser } from "../lib/auth";
 
 type AuthContextValue = {
@@ -14,6 +14,7 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const USER_KEY = "rotinau-user";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -22,15 +23,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restaura a sessão ao abrir o app.
   useEffect(() => {
-    getToken()
-      .then((t) => setAuthenticated(!!t))
-      .catch(() => setAuthenticated(false))
-      .finally(() => setReady(true));
+    (async () => {
+      try {
+        const t = await getToken();
+        setAuthenticated(!!t);
+        if (t) {
+          const raw = await AsyncStorage.getItem(USER_KEY);
+          if (raw) setUser(JSON.parse(raw) as AuthUser);
+        }
+      } catch {
+        setAuthenticated(false);
+      } finally {
+        setReady(true);
+      }
+    })();
   }, []);
   
 
   const signOut = useCallback(async () => {
     await clearTokens();
+    AsyncStorage.removeItem(USER_KEY).catch(() => {});
     setUser(null);
     setAuthenticated(false);
   }, []);
@@ -47,12 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (email: string, password: string) => {
     const res = await login(email, password);
     setUser(res.user ?? null);
+    if (res.user) AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user)).catch(() => {});
     setAuthenticated(true);
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
     const res = await register(name, email, password);
     setUser(res.user ?? null);
+    if (res.user) AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user)).catch(() => {});
     setAuthenticated(true);
   }, []);
 
