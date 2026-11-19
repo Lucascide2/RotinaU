@@ -26,7 +26,7 @@ import {
   // IMPORTANTE: nunca coloque a chave da API no app. Este endpoint deve ser um
   // proxy seu (Edge Function, Worker, backend...) que repassa o corpo para
   // https://api.anthropic.com/v1/messages adicionando a chave no servidor.
-  const LLM_ENDPOINT = "http://localhost:3000/api/chat";
+  const LLM_ENDPOINT = `${process.env.EXPO_PUBLIC_API_URL}/api/chat`;
   const LLM_MODEL = "gemini-3.1-flash-lite";
   const LLM_TIMEOUT_MS = 25_000;
   const HISTORY_WINDOW_DAYS = 7;
@@ -192,6 +192,7 @@ import {
   /* -------------------------------------------------------------------------- */
   
   async function callLLM(endpoint: string, userContent: string, maxTokens: number, signal?: AbortSignal) {
+    
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
     const onAbort = () => {
@@ -299,7 +300,7 @@ import {
       const content = buildUserPayload(now, subjects, stats, entries, slotPayload);
       console.log("Chamou a LLM 1")
       const text = await callLLM(endpoint, content, Math.min(8000, 400 + slots.length * 40), signal);
-  
+
       // 3) Validação
       const subjectIds = new Set(subjects.map((s) => s.id));
       const plan = parsePlan(text, slots.length, subjectIds);

@@ -33,6 +33,8 @@ import { calendarOffsets } from "../lib/calendar";
 import { colors, fonts, radius } from "../theme/colors";
 import { withAlpha } from "../theme/alpha";
 import { generateSafe } from "@/lib/rotina-ai";
+import { PremiumCrown } from "./primitives/premium-crown";
+import { logout } from "@/lib/auth";
 
 type Props = { state: State; update: (p: Partial<State>) => void; now: Date };
 
@@ -138,13 +140,16 @@ const applyDuration = async (to: number) => {
       title={focusOff === 0 ? "Sua rotina — hoje" : `Sua rotina — ${DAY_NAMES[focusDay]?.toLowerCase()}`}
       subtitle={`${fmtDay(focusDate)} a ${fmtDay(lastDate)}`}
       action={
-        <Pressable
-          onPress={() => setCalOpen(!calOpen)}
-          accessibilityLabel="Abrir calendário"
-          style={[styles.calBtn, calOpen && styles.calBtnActive]}
-        >
-          <Text style={styles.calBtnIcon}>📅</Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <PremiumCrown onUnauthorized={logout} />
+          <Pressable
+            onPress={() => setCalOpen(!calOpen)}
+            accessibilityLabel="Abrir calendário"
+            style={[styles.calBtn, calOpen && styles.calBtnActive]}
+          >
+            <Text style={styles.calBtnIcon}>📅</Text>
+          </Pressable>
+        </View>
       }
       footer={<PrimaryButton onPress={() => update({ step: "availability" })}>Ajustar rotina</PrimaryButton>}
     >

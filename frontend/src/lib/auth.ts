@@ -125,8 +125,9 @@ async function send(path: string, init: RequestInit, token: string | null) {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  return fetch(`${API_URL}${path}`, { ...init, headers });
-}
+
+  return fetch(path, { ...init, headers });
+} 
 
 // Use no lugar de fetch para rotas protegidas (ex.: /api/chat).
 // Se o access token expirou, renova e repete a requisição uma vez, de forma transparente.

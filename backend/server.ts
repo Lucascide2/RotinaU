@@ -16,7 +16,7 @@ import { premiumRouter } from "./premium-routes";
 /* -------------------------------------------------------------------------- */
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
-const DAILY_LIMIT = 15; // por usuário
+const DAILY_LIMIT = 30; // por usuário
 const GLOBAL_DAILY_LIMIT = Number(process.env.GLOBAL_DAILY_LIMIT ?? 500); // teto somando todos os usuários
 const PORT = Number(process.env.PORT ?? 3000);
 // Em produção atrás do Nginx, use HOST=127.0.0.1: o Node deixa de ser acessível direto
@@ -205,7 +205,6 @@ app.post(
   userDailyLimiter,
   globalDailyLimiter,
   async (req: Request, res: Response) => {
-    console.log("Enviou para a rota correta")
 
     const body = parseBody(req.body);
     if (!body) {
