@@ -14,18 +14,22 @@ const PRIORITIES: Priority[] = ["baixa", "media", "alta"];
 
 export function SubjectsScreen({ state, update }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const locked = busy;
 
-  const setSub = (id: string, p: Partial<State["subjects"][number]>) =>
+  const setSub = (id: string, p: Partial<State["subjects"][number]>) => {
+    if (locked) return;
     update({ subjects: state.subjects.map((s) => (s.id === id ? { ...s, ...p } : s)) });
+  };
 
   const add = () => {
+    if (locked) return;
     const id = uid();
     update({ subjects: [...state.subjects, { id, name: "Nova disciplina", priority: "media" }] });
     setEditing(id);
   };
 
   const valid = state.subjects.filter((s) => s.name.trim());
-  const [busy, setBusy] = useState(false);
   const canGenerate = valid.length > 0 && buildSlots(state.days, state.duration).length > 0;
   
   const gen = async () => {
@@ -74,7 +78,7 @@ export function SubjectsScreen({ state, update }: Props) {
     <Screen
       title="Disciplinas e prioridades"
       subtitle="Adicione as disciplinas e indique onde precisa dedicar mais esforço."
-      onBack={() => update({ step: "availability" })}
+      onBack={() => { if (!locked) update({ step: "availability" }); }}
       footer={
         <>
           {!canGenerate ? (
@@ -92,6 +96,7 @@ export function SubjectsScreen({ state, update }: Props) {
         </>
       }
     >
+    <View style={locked && styles.locked} pointerEvents={locked ? "none" : "auto"}>
       {state.subjects.map((s) => (
         <Card key={s.id}>
           <View style={styles.topRow}>
@@ -99,6 +104,7 @@ export function SubjectsScreen({ state, update }: Props) {
               <TextInput
                 autoFocus
                 value={s.name}
+                editable={!locked}
                 onChangeText={(name) => setSub(s.id, { name })}
                 onBlur={() => setEditing(null)}
                 onSubmitEditing={() => setEditing(null)}
@@ -107,15 +113,16 @@ export function SubjectsScreen({ state, update }: Props) {
                 style={styles.input}
               />
             ) : (
-              <Pressable onPress={() => setEditing(s.id)} style={styles.nameWrap}>
+              <Pressable disabled={locked} onPress={() => setEditing(s.id)} style={styles.nameWrap}>
                 <Text style={styles.name}>{s.name}</Text>
               </Pressable>
             )}
             <View style={styles.links}>
-              <Pressable onPress={() => setEditing(s.id)} hitSlop={8}>
+              <Pressable disabled={locked} onPress={() => setEditing(s.id)} hitSlop={8}>
                 <Text style={[styles.link, { color: colors.primary }]}>Editar</Text>
               </Pressable>
               <Pressable
+                disabled={locked}
                 onPress={() => update({ subjects: state.subjects.filter((x) => x.id !== s.id) })}
                 hitSlop={8}
               >
@@ -132,6 +139,7 @@ export function SubjectsScreen({ state, update }: Props) {
                 return (
                   <Pressable
                     key={p}
+                    disabled={locked}
                     onPress={() => setSub(s.id, { priority: p })}
                     style={[styles.pill, { backgroundColor: active ? PRIO_COLOR[p] : colors.muted }]}
                   >
@@ -148,10 +156,11 @@ export function SubjectsScreen({ state, update }: Props) {
               })}
             </View>
           </View>
-        </Card>
-      ))}
+        </Card>))}
+    </View>
 
-      <Pressable onPress={add} style={styles.addBtn}>
+
+      <Pressable disabled={locked} onPress={add} style={styles.addBtn}>
         <Text style={styles.addText}>+ Adicionar disciplina</Text>
       </Pressable>
 
@@ -162,6 +171,7 @@ export function SubjectsScreen({ state, update }: Props) {
           return (
             <Pressable
               key={d}
+              disabled={locked}
               onPress={() => update({ duration: d })}
               style={[
                 styles.durBtn,
@@ -217,4 +227,6 @@ const styles = StyleSheet.create({
   durations: { flexDirection: "row", gap: 8 },
   durBtn: { flex: 1, alignItems: "center", borderRadius: radius.lg, borderWidth: 1, paddingVertical: 8 },
   durText: { fontFamily: fonts.bold, fontSize: 12 },
+  content: { gap: 12 },
+  locked: { opacity: 0.5 },
 });
