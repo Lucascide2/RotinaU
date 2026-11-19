@@ -12,20 +12,37 @@ import { RoutineScreen } from "../components/routine-screen";
 import { defaultState, needsWeeks, prepareWeeks, type State } from "../lib/rotina";
 import { reportError } from "../lib/error-reporting";
 import { prepareWeeksLLM } from "@/lib/rotina-ai";
+import { useAuth } from "@/components/auth-context";
 
 const KEY = "rotinau-v1";
 
-
+type AuthView = "intro" | "login" | "register";
 
 export default function Index() {
   const [state, setState] = useState<State | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const { ready, isAuthenticated } = useAuth();
+  const [authView, setAuthView] = useState<AuthView>("intro");
 
   // Carrega do AsyncStorage (assíncrono, diferente do localStorage).
   const [preparing, setPreparing] = useState(false);
   const stateRef = useRef<State | null>(null);
   stateRef.current = state;
   
+  // Ao deslogar, volta para a apresentação.
+  useEffect(() => {
+    if (!isAuthenticated) setAuthView("intro");
+  }, [isAuthenticated]);
+
+  // Ao logar, nunca fica na intro: vai para a rotina (ou disponibilidade, se ainda não há sessões).
+  useEffect(() => {
+    if (isAuthenticated && state?.step === "intro") {
+      setState((s) =>
+        s ? prepareWeeks({ ...s, step: s.sessions.length ? "routine" : "availability" }, new Date()) : s,
+      );
+    }
+  }, [isAuthenticated, state?.step]);
+
   useEffect(() => {
     let alive = true;
     const ctrl = new AbortController();
@@ -76,13 +93,23 @@ export default function Index() {
     );
   }, [state]);
 
-  if (!state) {
+  if (!ready || !state) {
     return (
       <Shell>
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
           <ActivityIndicator size="large" />
           {preparing && <Text>Preparando sua rotina da semana…</Text>}
         </View>
+      </Shell>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return (
+      <Shell>
+        {authView === "intro" && <IntroScreen onStart={() => setAuthView("login")} />}
+        {authView === "login" && <LoginScreen onGoRegister={() => setAuthView("register")} />}
+        {authView === "register" && <RegisterScreen onGoLogin={() => setAuthView("login")} />}
       </Shell>
     );
   }

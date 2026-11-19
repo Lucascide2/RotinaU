@@ -23,7 +23,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Restaura a sessão ao abrir o app.
   useEffect(() => {
     getToken()
-      .then((t) => setAuthenticated(true))
+      .then((t) => setAuthenticated(!!t))
+      .catch(() => setAuthenticated(false))
       .finally(() => setReady(true));
   }, []);
   

@@ -96,96 +96,96 @@ export function SubjectsScreen({ state, update }: Props) {
         </>
       }
     >
-    <View style={locked && styles.locked} pointerEvents={locked ? "none" : "auto"}>
-      {state.subjects.map((s) => (
-        <Card key={s.id}>
-          <View style={styles.topRow}>
-            {editing === s.id ? (
-              <TextInput
-                autoFocus
-                value={s.name}
-                editable={!locked}
-                onChangeText={(name) => setSub(s.id, { name })}
-                onBlur={() => setEditing(null)}
-                onSubmitEditing={() => setEditing(null)}
-                returnKeyType="done"
-                selectionColor={colors.primary}
-                style={styles.input}
-              />
-            ) : (
-              <Pressable disabled={locked} onPress={() => setEditing(s.id)} style={styles.nameWrap}>
-                <Text style={styles.name}>{s.name}</Text>
-              </Pressable>
-            )}
-            <View style={styles.links}>
-              <Pressable disabled={locked} onPress={() => setEditing(s.id)} hitSlop={8}>
-                <Text style={[styles.link, { color: colors.primary }]}>Editar</Text>
-              </Pressable>
-              <Pressable
-                disabled={locked}
-                onPress={() => update({ subjects: state.subjects.filter((x) => x.id !== s.id) })}
-                hitSlop={8}
-              >
-                <Text style={[styles.link, { color: colors.destructive }]}>Excluir</Text>
-              </Pressable>
+      <View style={locked && styles.locked} pointerEvents={locked ? "none" : "auto"}>
+        {state.subjects.map((s) => (
+          <Card key={s.id}>
+            <View style={styles.topRow}>
+              {editing === s.id ? (
+                <TextInput
+                  autoFocus
+                  value={s.name}
+                  editable={!locked}
+                  onChangeText={(name) => setSub(s.id, { name })}
+                  onBlur={() => setEditing(null)}
+                  onSubmitEditing={() => setEditing(null)}
+                  returnKeyType="done"
+                  selectionColor={colors.primary}
+                  style={styles.input}
+                />
+              ) : (
+                <Pressable disabled={locked} onPress={() => setEditing(s.id)} style={styles.nameWrap}>
+                  <Text style={styles.name}>{s.name}</Text>
+                </Pressable>
+              )}
+              <View style={styles.links}>
+                <Pressable disabled={locked} onPress={() => setEditing(s.id)} hitSlop={8}>
+                  <Text style={[styles.link, { color: colors.primary }]}>Editar</Text>
+                </Pressable>
+                <Pressable
+                  disabled={locked}
+                  onPress={() => update({ subjects: state.subjects.filter((x) => x.id !== s.id) })}
+                  hitSlop={8}
+                >
+                  <Text style={[styles.link, { color: colors.destructive }]}>Excluir</Text>
+                </Pressable>
+              </View>
             </View>
-          </View>
 
-          <View style={styles.prioRow}>
-            <Text style={styles.prioLabel}>Dificuldade</Text>
-            <View style={styles.pills}>
-              {PRIORITIES.map((p) => {
-                const active = s.priority === p;
-                return (
-                  <Pressable
-                    key={p}
-                    disabled={locked}
-                    onPress={() => setSub(s.id, { priority: p })}
-                    style={[styles.pill, { backgroundColor: active ? PRIO_COLOR[p] : colors.muted }]}
-                  >
-                    <Text
-                      style={[
-                        styles.pillText,
-                        { color: active ? colors.primaryForeground : colors.mutedForeground },
-                      ]}
+            <View style={styles.prioRow}>
+              <Text style={styles.prioLabel}>Dificuldade</Text>
+              <View style={styles.pills}>
+                {PRIORITIES.map((p) => {
+                  const active = s.priority === p;
+                  return (
+                    <Pressable
+                      key={p}
+                      disabled={locked}
+                      onPress={() => setSub(s.id, { priority: p })}
+                      style={[styles.pill, { backgroundColor: active ? PRIO_COLOR[p] : colors.muted }]}
                     >
-                      {PRIORITY_LABEL[p]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.pillText,
+                          { color: active ? colors.primaryForeground : colors.mutedForeground },
+                        ]}
+                      >
+                        {PRIORITY_LABEL[p]}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
-          </View>
-        </Card>))}
-    </View>
+          </Card>))}
 
 
-      <Pressable disabled={locked} onPress={add} style={styles.addBtn}>
-        <Text style={styles.addText}>+ Adicionar disciplina</Text>
-      </Pressable>
+        <Pressable disabled={locked} onPress={add} style={styles.addBtn}>
+          <Text style={styles.addText}>+ Adicionar disciplina</Text>
+        </Pressable>
 
-      <Text style={styles.sectionTitle}>Duração das sessões</Text>
-      <View style={styles.durations}>
-        {[30, 45, 60].map((d) => {
-          const active = state.duration === d;
-          return (
-            <Pressable
-              key={d}
-              disabled={locked}
-              onPress={() => update({ duration: d })}
-              style={[
-                styles.durBtn,
-                active
-                  ? { borderColor: colors.primary, backgroundColor: colors.primary }
-                  : { borderColor: colors.border, backgroundColor: colors.card },
-              ]}
-            >
-              <Text style={[styles.durText, { color: active ? colors.primaryForeground : colors.foreground }]}>
-                {d === 60 ? "1 hora" : `${d} min`}
-              </Text>
-            </Pressable>
-          );
-        })}
+        <Text style={styles.sectionTitle}>Duração das sessões</Text>
+        <View style={styles.durations}>
+          {[30, 45, 60].map((d) => {
+            const active = state.duration === d;
+            return (
+              <Pressable
+                key={d}
+                disabled={locked}
+                onPress={() => update({ duration: d })}
+                style={[
+                  styles.durBtn,
+                  active
+                    ? { borderColor: colors.primary, backgroundColor: colors.primary }
+                    : { borderColor: colors.border, backgroundColor: colors.card },
+                ]}
+              >
+                <Text style={[styles.durText, { color: active ? colors.primaryForeground : colors.foreground }]}>
+                  {d === 60 ? "1 hora" : `${d} min`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </Screen>
   );
