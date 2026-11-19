@@ -9,8 +9,10 @@ export type RedeemResult =
 
 /** Resgata o código premium. Nunca lança: sempre devolve um resultado tratável pela UI. */
 export async function redeemPremiumCode(code: string): Promise<RedeemResult> {
+
+  const endpoint = `${process.env.EXPO_PUBLIC_API_URL}/api/premium/redeem`;
   try {
-    const res = await apiFetch("/api/premium/redeem", {
+    const res = await apiFetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: code.trim() }),
