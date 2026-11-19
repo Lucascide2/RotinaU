@@ -180,6 +180,11 @@ const app = express();
 // senão o servidor enxerga o IP do proxy e o bloqueio de login por IP fica errado.
 if (TRUST_PROXY > 0) app.set("trust proxy", TRUST_PROXY);
 
+app.use((req, _res, next) => {
+  console.log("[origin]", req.method, req.path, "->", JSON.stringify(req.headers.origin));
+  next();
+});
+
 // CORS: o navegador só aceita respostas para a origem permitida (e responde ao preflight).
 // "Authorization" precisa estar liberado, senão o navegador bloqueia o token no preflight.
 app.use(
