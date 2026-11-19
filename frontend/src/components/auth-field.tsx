@@ -3,6 +3,7 @@ import { forwardRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 
 import { colors, fonts, radius } from "../theme/colors";
+import { noOutline } from "../theme/web";
 
 type Props = TextInputProps & {
   label: string;
@@ -42,7 +43,7 @@ export const AuthField = forwardRef<TextInputRef, Props>(function AuthField(
           }}
           placeholderTextColor={colors.mutedForeground}
           selectionColor={colors.primary}
-          style={[styles.input, style]}
+          style={[styles.input, noOutline, style]}
         />
         {isPassword ? (
           <Pressable onPress={() => setHidden((h) => !h)} hitSlop={8}>

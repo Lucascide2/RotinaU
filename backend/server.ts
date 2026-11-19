@@ -190,7 +190,7 @@ app.use((req, _res, next) => {
 app.use(
   cors({
     origin: ALLOWED_ORIGIN,
-    methods: ["POST", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );

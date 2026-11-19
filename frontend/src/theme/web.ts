@@ -1,0 +1,1 @@
+export const noOutline = { outlineStyle: "none", outlineWidth: 0 } as any;
