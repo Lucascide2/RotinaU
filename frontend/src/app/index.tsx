@@ -39,30 +39,10 @@ export default function Index() {
 
   const stateRef = useRef<State | null>(null);
   stateRef.current = state;
-
-  console.log("[Index]", { ready, isAuthenticated, userId: user?.id, hasState: !!state, authView });
   
   // Cada conta tem o seu registro. Sem usuário logado, não há chave.
   const storageKey = isAuthenticated && user?.id ? `rotinau-v1:${user.id}` : null;
   const loadedKeyRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    console.log("[persist]", { hasState: !!state, storageKey, loaded: loadedKeyRef.current });
-    if (!state || !storageKey || loadedKeyRef.current !== storageKey) return;
-    // ...
-
-    console.log("Sessions:", state.sessions.length, "|", "Weeks:", Object.keys(state.weeks ?? {}).length)
-
-  }, [state, storageKey]);
-
-  useEffect(() => {
-    console.log("O valor de hasRoutine eh")
-
-    if (state) {
-      console.log(hasRoutine(state))
-    }
-
-  }, [state]);
 
   // Ao deslogar, volta para a apresentação.
   useEffect(() => {
@@ -87,7 +67,6 @@ export default function Index() {
     const ctrl = new AbortController();
 
     const prepare = async (base: State, d: Date): Promise<State> => {
-      console.log("Não checou no trycatch do prepareWeeksLLM")
       if (!needsWeeks(base, d)) return prepareWeeks(base, d); // rápido, sem LLM
       if (alive) setPreparing(true);
       try {
@@ -114,14 +93,6 @@ export default function Index() {
         }
         s = raw ? (JSON.parse(raw) as State) : defaultState();
 
-        console.log("[state:carga]", {
-          step: s.step,
-          weekStart: s.weekStart,
-          sessions: s.sessions?.length,
-          weeksCounts: Object.fromEntries(
-            Object.entries(s.weeks ?? {}).map(([k, v]) => [k, v.length]),
-          ),
-        });
       } catch (e) {
         readOk = false;
         reportError(e, { boundary: "load_state" });

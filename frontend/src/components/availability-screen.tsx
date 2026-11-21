@@ -18,9 +18,6 @@ export function AvailabilityScreen({ state, update }: Props) {
 
   const valid = state.days.some((d) => d.enabled && toMin(d.end) - toMin(d.start) >= 30);
 
-  console.log("Has routine:", hasRoutine(state))
-
-  console.log("[check]", { sessions: state.sessions.length, keys: Object.keys(state) });
 
   return (
     <Screen

@@ -87,8 +87,6 @@ export function PremiumCrown({ onPremiumChange, onUnauthorized }: Props) {
     if (result.reason === "unauthorized") onUnauthorized?.();
   };
 
-  // console.log("[crown]", { online, premium });
-
   return (
     <>
       <Pressable

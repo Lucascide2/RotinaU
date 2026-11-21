@@ -49,11 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  useEffect(() => {
-    console.log("[auth-context] authenticated mudou:", authenticated);
-  }, [authenticated]);
   
-
   const signOut = useCallback(async () => {
     await clearTokens();
     AsyncStorage.removeItem(USER_KEY).catch(() => {});

@@ -1,21 +1,21 @@
 import {
-    PRIORITY_WEIGHT,
-    SESSION_GAP,
-    State,
-    buildSlots,
-    generate,
-    historyFor,
-    mondayOf,
-    plannedAt,
-    shiftWeek,
-    toTime,
-    uid,
-    withSessionGaps,
-    type Day,
-    type Session,
-    type Slot,
-    type Subject,
-  } from "./rotina";
+  PRIORITY_WEIGHT,
+  SESSION_GAP,
+  State,
+  buildSlots,
+  generate,
+  historyFor,
+  mondayOf,
+  plannedAt,
+  shiftWeek,
+  toTime,
+  uid,
+  withSessionGaps,
+  type Day,
+  type Session,
+  type Slot,
+  type Subject,
+} from "./rotina";
 
   import { apiFetch } from "../lib/auth";
   
@@ -162,11 +162,16 @@ import {
   1. Cubra todos os slots, exatamente uma vez cada. Use somente ids de matéria fornecidos.
   2. Distribua o tempo proporcionalmente ao peso da prioridade (alta=3, media=2, baixa=1). Matérias de prioridade alta são as mais difíceis e merecem mais tempo.
   3. Ajuste pelo histórico:
-     - Sessões "missed" ou "overdue" significam conteúdo NÃO estudado: compense dando mais slots a essa matéria, de preferência nos primeiros slots disponíveis, como estudo novo (review=false).
+     - Sessões "missed" ou "overdue" significam conteúdo NÃO estudado: compense dando mais slots a essa matéria, de preferência nos primeiros dias disponíveis, como estudo novo (review=false).
      - Matérias com muitas sessões "done" recentemente podem receber menos tempo; matérias sem estudo há muitos dias devem subir de prioridade.
      - Sessões "upcoming" já estão planejadas: considere-as como carga existente e não duplique a mesma matéria em excesso.
-  4. Revisões (review=true): use aproximadamente 20% dos slots (pelo menos 1 se houver 3 ou mais slots), preferindo os últimos slots. Revise apenas matérias que já foram estudadas (sessão "done" no histórico ou estudo agendado antes no próprio plano) e em um dia diferente do estudo mais recente dela. Priorize matérias de prioridade alta e estudadas há 1 a 3 dias.
-  5. Evite a mesma matéria em slots consecutivos e evite mais de 2 sessões da mesma matéria no mesmo dia, quando houver alternativa.
+  4. Revisões (review=true): use aproximadamente 20% dos slots (pelo menos 1 se houver 3 ou mais slots). Prefira marcar como revisão um slot com uma matéria diferente da matéria de uma sequência, ou slots mais ao final da semana. Revise apenas matérias que já foram estudadas (sessão "done" no histórico ou estudo agendado antes no próprio plano) e em um dia diferente do estudo mais recente dela. Priorize matérias de prioridade alta e estudadas há 1 a 3 dias.
+  5. Organização de cada dia (muito importante, a prática real exige foco):
+     - Agrupe slots consecutivos (adjacentes no tempo) da MESMA matéria em sequências de 2 a 4 slots, sendo que a sequência é quebrada caso o início do quarto slot seja em um tempo acumulado da sequência superior ou igual a 120 minutos.
+     - Nunca alterne matérias a cada slot (A, B, A, B é proibido). Cada troca de matéria deve ocorrer só depois de uma sequência completa.
+     - Não repita a mesma matéria em duas sequências separadas no mesmo dia, a menos que o dia tenha um valor igual ou maior do que 4 horas em slots disponíveis no dia.
+     - Distribua as matérias pelos dias da semana conforme o peso da prioridade (alta aparece em mais dias e com sequências maiores), em vez de colocar todas as matérias em todos os dias.
+     - Se um dia tiver apenas 1 ou 2 slots, use uma única matéria nele.
   
   Responda SOMENTE com um array JSON, sem texto extra e sem markdown, neste formato:
   [{"slot":0,"subjectId":"<id>","review":false}]`;
@@ -298,7 +303,6 @@ import {
       });
   
       const content = buildUserPayload(now, subjects, stats, entries, slotPayload);
-      console.log("Chamou a LLM 1")
       const text = await callLLM(endpoint, content, Math.min(8000, 400 + slots.length * 40), signal);
 
       // 3) Validação
@@ -341,7 +345,6 @@ import {
   
   export async function prepareWeeksLLM(state: State, now: Date, parent?: AbortSignal): Promise<State> {
 
-    console.log("Executou o prepareWeeksLLM")
     const current = mondayOf(now).toISOString();
     const nextWeek = shiftWeek(current, 1);
     const weeks = { ...state.weeks };
@@ -361,7 +364,6 @@ import {
         history: historyFor(weeks, weekStart),
       })).sessions;
   
-    console.log("[weeks[current]] era", weeks[current], "e seu valor booleano era", Boolean(weeks[current]))
     if (!weeks[current]) weeks[current] = hasPlan ? await make(current) : [];
     if (hasPlan && !weeks[nextWeek]) weeks[nextWeek] = await make(nextWeek);
   
@@ -369,15 +371,6 @@ import {
       ...state, weekStart: current, sessions: weeks[current] ?? [], weeks,
       dismissed: current === state.weekStart ? state.dismissed : [],
     };
-    
-    console.log("[state:saida-llm]", {
-      step: result.step,
-      weekStart: result.weekStart,
-      sessions: result.sessions.length,
-      weeksCounts: Object.fromEntries(
-        Object.entries(result.weeks).map(([k, v]) => [k, v.length]),
-      ),
-    });
     
     return result;
   }

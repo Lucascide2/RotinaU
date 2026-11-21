@@ -44,13 +44,8 @@ export async function getPremiumStatus(): Promise<PremiumStatus> {
   try {
     const res = await apiFetch(`${API_URL}/api/premium/status`);
     
-    console.log("[Premium-status] a res foi", res.status)
-
-    console.log("[Premium-ok] res ok foi", !res.ok)
-
     if (!res.ok) return { online: true, premium: false }; // 401 etc.: servidor respondeu
 
-    console.log("[getPremiumStatus-return]", true, true)
     const data = (await res.json()) as { premium: boolean };
     return { online: true, premium: data.premium === true };
   } catch (e) {
