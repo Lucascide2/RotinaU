@@ -122,9 +122,14 @@ function refreshTokens(): Promise<RefreshOutcome> {
 /* ---------- Requisições autenticadas ---------- */
 
 async function send(path: string, init: RequestInit, token: string | null) {
+
+  console.log("[send] Send foi chamado")
+
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  console.log("[send] foi realizado o fetch para o path", path)
 
   return fetch(path, { ...init, headers });
 } 

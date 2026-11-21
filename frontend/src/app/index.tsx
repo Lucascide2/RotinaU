@@ -195,19 +195,21 @@ export default function Index() {
     );
   }
 
+
   if (!state) return <Splash message={preparing ? "Preparando sua rotina da semana…" : undefined} />;
 
   const update = (p: Partial<State>) =>
     setState((s) => (s ? prepareWeeks({ ...s, ...p }, new Date()) : s));
 
+  if (state.step === "intro"){
+    state.step = "availability"
+  }
+    
+
   return (
     <>
       <Shell>
-        {state.step === "intro" && (
-          <IntroScreen
-            onStart={() => update({ step: hasRoutine(state) ? "routine" : "availability" })}
-          />
-        )}
+
         {state.step === "availability" && <AvailabilityScreen state={state} update={update} />}
         {state.step === "subjects" && <SubjectsScreen state={state} update={update} />}
         {state.step === "routine" && <RoutineScreen state={state} update={update} now={now} />}

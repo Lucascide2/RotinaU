@@ -42,8 +42,10 @@ export function PremiumCrown({ onPremiumChange, onUnauthorized }: Props) {
 
     const check = async () => {
       const s = await getPremiumStatus();
+      console.log("[premium-crown s (getPremiumStatus)] é igual a", s.online, s.premium)
       if (!alive) return;
       setOnline(s.online);
+
       if (s.online) {
         setPremium(s.premium);
         onPremiumChange?.(s.premium);
@@ -86,6 +88,8 @@ export function PremiumCrown({ onPremiumChange, onUnauthorized }: Props) {
     setError(result.message);
     if (result.reason === "unauthorized") onUnauthorized?.();
   };
+
+  // console.log("[crown]", { online, premium });
 
   return (
     <>
