@@ -77,6 +77,14 @@ CREATE TABLE IF NOT EXISTS premium_shared_redemptions (
   PRIMARY KEY (code_id, user_id)
 );
 
+-- Proteção global do código compartilhado (uma única linha).
+CREATE TABLE IF NOT EXISTS premium_global_guard (
+  id            smallint    PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  fail_count    integer     NOT NULL DEFAULT 0,
+  blocked_until timestamptz
+);
+INSERT INTO premium_global_guard (id) VALUES (1) ON CONFLICT DO NOTHING;
+
 -- Permissão de uso do chat (Gemini). Nega por padrão: o acesso é concedido a cada usuário.
 -- Funciona tanto em banco novo quanto em um que já tinha a tabela users.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS llm_enabled boolean NOT NULL DEFAULT false;
