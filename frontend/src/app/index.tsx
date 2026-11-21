@@ -8,7 +8,7 @@ import { IntroScreen } from "../components/intro-screen";
 import { AvailabilityScreen } from "../components/availability-screen";
 import { SubjectsScreen } from "../components/subjects-screen";
 import { RoutineScreen } from "../components/routine-screen";
-import { defaultState, needsWeeks, prepareWeeks, type State } from "../lib/rotina";
+import { defaultState, hasRoutine, needsWeeks, prepareWeeks, type State } from "../lib/rotina";
 import { reportError } from "../lib/error-reporting";
 import { prepareWeeksLLM } from "@/lib/rotina-ai";
 import { useAuth } from "@/components/auth-context";
@@ -32,7 +32,6 @@ function Splash({ message }: { message?: string }) {
 
 export default function Index() {
   const { ready, isAuthenticated, user } = useAuth();
-
   const [state, setState] = useState<State | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [authView, setAuthView] = useState<AuthView>("intro");
@@ -41,23 +40,38 @@ export default function Index() {
   const stateRef = useRef<State | null>(null);
   stateRef.current = state;
 
+  console.log("[Index]", { ready, isAuthenticated, userId: user?.id, hasState: !!state, authView });
+  
   // Cada conta tem o seu registro. Sem usuário logado, não há chave.
   const storageKey = isAuthenticated && user?.id ? `rotinau-v1:${user.id}` : null;
   const loadedKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    console.log("[persist]", { hasState: !!state, storageKey, loaded: loadedKeyRef.current });
+    if (!state || !storageKey || loadedKeyRef.current !== storageKey) return;
+    // ...
+
+    console.log("Sessions:", state.sessions.length, "|", "Weeks:", Object.keys(state.weeks ?? {}).length)
+
+  }, [state, storageKey]);
+
+  useEffect(() => {
+    console.log("O valor de hasRoutine eh")
+
+    if (state) {
+      console.log(hasRoutine(state))
+    }
+
+  }, [state]);
 
   // Ao deslogar, volta para a apresentação.
   useEffect(() => {
     if (!isAuthenticated) setAuthView("intro");
   }, [isAuthenticated]);
 
-  // Ao logar, nunca fica na intro: vai para a rotina (ou disponibilidade, se ainda não há sessões).
   useEffect(() => {
-    if (isAuthenticated && state?.step === "intro") {
-      setState((s) =>
-        s ? prepareWeeks({ ...s, step: s.sessions.length ? "routine" : "availability" }, new Date()) : s,
-      );
-    }
-  }, [isAuthenticated, state?.step]);
+    if (!isAuthenticated) setAuthView("intro");
+  }, [isAuthenticated]);
 
   // Carrega o estado da conta atual e mantém o relógio e o AppState.
   useEffect(() => {
@@ -73,6 +87,7 @@ export default function Index() {
     const ctrl = new AbortController();
 
     const prepare = async (base: State, d: Date): Promise<State> => {
+      console.log("Não checou no trycatch do prepareWeeksLLM")
       if (!needsWeeks(base, d)) return prepareWeeks(base, d); // rápido, sem LLM
       if (alive) setPreparing(true);
       try {
@@ -98,6 +113,15 @@ export default function Index() {
           }
         }
         s = raw ? (JSON.parse(raw) as State) : defaultState();
+
+        console.log("[state:carga]", {
+          step: s.step,
+          weekStart: s.weekStart,
+          sessions: s.sessions?.length,
+          weeksCounts: Object.fromEntries(
+            Object.entries(s.weeks ?? {}).map(([k, v]) => [k, v.length]),
+          ),
+        });
       } catch (e) {
         readOk = false;
         reportError(e, { boundary: "load_state" });
@@ -114,6 +138,11 @@ export default function Index() {
         prepared = prepareWeeks(s, new Date()); // fallback sem LLM
       }
       if (!alive) return;
+
+      // ⬇️ AQUI
+      if (prepared.step === "intro" && hasRoutine(prepared)) {
+        prepared = { ...prepared, step: "routine" };
+      }
 
       // Se a leitura falhou, não libera a gravação, para não sobrescrever os dados salvos.
       loadedKeyRef.current = readOk ? storageKey : null;
@@ -156,7 +185,7 @@ export default function Index() {
 
   if (!ready) return <Splash />;
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return (
       <Shell>
         {authView === "intro" && <IntroScreen onStart={() => setAuthView("login")} />}
@@ -175,7 +204,9 @@ export default function Index() {
     <>
       <Shell>
         {state.step === "intro" && (
-          <IntroScreen onStart={() => update({ step: state.sessions.length ? "routine" : "availability" })} />
+          <IntroScreen
+            onStart={() => update({ step: hasRoutine(state) ? "routine" : "availability" })}
+          />
         )}
         {state.step === "availability" && <AvailabilityScreen state={state} update={update} />}
         {state.step === "subjects" && <SubjectsScreen state={state} update={update} />}

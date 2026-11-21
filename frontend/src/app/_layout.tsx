@@ -75,22 +75,13 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 
 // Fica dentro do AuthProvider, senão useAuth() falha.
 function RootNavigator() {
-  const { ready, isAuthenticated } = useAuth();
+  const { ready } = useAuth();
 
   if (!ready) return null; // token salvo ainda sendo lido
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {/* Só acessível logado */}
-      <Stack.Protected guard={isAuthenticated}>
-        <Stack.Screen name="index" />
-      </Stack.Protected>
-
-      {/* Só acessível deslogado */}
-      <Stack.Protected guard={!isAuthenticated}>
-        <Stack.Screen name="login" />
-        <Stack.Screen name="register" />
-      </Stack.Protected>
+      <Stack.Screen name="index" />
     </Stack>
   );
 }

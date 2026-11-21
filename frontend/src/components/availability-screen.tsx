@@ -5,6 +5,10 @@ import { Card, PrimaryButton, Screen } from "./ui";
 import { TimeField } from "./time-field";
 import { DAY_NAMES, toMin, type State } from "../lib/rotina";
 import { colors, fonts } from "../theme/colors";
+import { useEffect } from "react";
+
+import { hasRoutine } from "../lib/rotina";
+
 
 type Props = { state: State; update: (p: Partial<State>) => void };
 
@@ -14,11 +18,15 @@ export function AvailabilityScreen({ state, update }: Props) {
 
   const valid = state.days.some((d) => d.enabled && toMin(d.end) - toMin(d.start) >= 30);
 
+  console.log("Has routine:", hasRoutine(state))
+
+  console.log("[check]", { sessions: state.sessions.length, keys: Object.keys(state) });
+
   return (
     <Screen
       title="Sua disponibilidade"
       subtitle="Selecione os períodos em que você realmente consegue estudar."
-      onBack={() => update({ step: "intro" })}
+      onBack={() => update({ step: hasRoutine(state) ? "routine" : "intro" })}
       footer={
         <PrimaryButton disabled={!valid} onPress={() => update({ step: "subjects" })}>
           Continuar

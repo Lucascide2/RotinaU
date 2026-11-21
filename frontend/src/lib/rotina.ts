@@ -77,7 +77,10 @@ export function sessionsForDate(state: State, date: Date): Session[] {
 
 /** Migra a semana salva, mantém histórico e prepara semanas futuras independentes. */
 export function prepareWeeks(state: State, now: Date): State {
-  const weeks = { ...state.weeks, [state.weekStart]: withSessionGaps(state.sessions) };
+  const weeks = { ...state.weeks };
+  if (state.sessions.length > 0 || !weeks[state.weekStart]) {
+    weeks[state.weekStart] = withSessionGaps(state.sessions);
+  }
   const current = mondayOf(now).toISOString();
   const hasPlan = Object.values(weeks).some((sessions) => sessions.length > 0);
   if (!weeks[current]) weeks[current] = hasPlan ? generate(state.days, state.subjects, state.duration) : [];
@@ -339,3 +342,6 @@ export function needsWeeks(state: State, now: Date): boolean {
   const current = mondayOf(now).toISOString();
   return !weeks[current] || !weeks[shiftWeek(current, 1)];
 }
+
+export const hasRoutine = (s: State) =>
+  s.sessions.length > 0 || Object.values(s.weeks ?? {}).some((w) => w.length > 0);

@@ -98,7 +98,7 @@ export function SubjectsScreen({ state, update }: Props) {
     >
       <View style={locked && styles.locked} pointerEvents={locked ? "none" : "auto"}>
         {state.subjects.map((s) => (
-          <Card key={s.id}>
+          <Card key={s.id} style={[styles.cardSubject, locked && styles.noShadow]}>
             <View style={styles.topRow}>
               {editing === s.id ? (
                 <TextInput
@@ -218,15 +218,17 @@ const styles = StyleSheet.create({
   link: { fontFamily: fonts.semibold, fontSize: 12 },
   prioRow: { marginTop: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   prioLabel: { fontFamily: fonts.regular, fontSize: 12, color: colors.mutedForeground },
+  cardSubject:{marginTop:4},
+  noShadow: { elevation: 0, shadowOpacity: 0, shadowRadius: 0 },
   pills: { flexDirection: "row", gap: 4 },
   pill: { borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4 },
   pillText: { fontFamily: fonts.bold, fontSize: 12 },
-  addBtn: { borderRadius: radius.xl, backgroundColor: colors.primarySoft, padding: 16 },
+  addBtn: { borderRadius: radius.xl, backgroundColor: colors.primarySoft, padding: 16, marginTop: 4 },
   addText: { fontFamily: fonts.bold, fontSize: 14, color: colors.secondaryForeground },
   sectionTitle: { marginTop: 8, fontFamily: fonts.bold, fontSize: 14, color: colors.foreground },
   durations: { flexDirection: "row", gap: 8 },
   durBtn: { flex: 1, alignItems: "center", borderRadius: radius.lg, borderWidth: 1, paddingVertical: 8 },
   durText: { fontFamily: fonts.bold, fontSize: 12 },
   content: { gap: 12 },
-  locked: { opacity: 0.5 },
+  locked: { opacity: 0.5 }
 });

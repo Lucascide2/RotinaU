@@ -42,6 +42,7 @@ export function LoginScreen({ onSuccess, onGoRegister }: Props) {
       await signIn(email, password);
       onSuccess?.();
     } catch (e) {
+
       setError(e instanceof ApiError ? e.message : "Não foi possível entrar. Tente novamente.");
     } finally {
       setBusy(false);

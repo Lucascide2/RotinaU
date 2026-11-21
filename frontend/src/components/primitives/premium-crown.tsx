@@ -15,6 +15,7 @@ import {
 import { getPremiumStatus, redeemPremiumCode } from "../../lib/premium-api";
 import { colors, fonts, radius } from "../../theme/colors";
 import { PrimaryButton, shadow } from "../ui";
+import { useAuth } from "../auth-context"; // ajuste o caminho real
 
 type Props = {
   /** Avisa o resto do app quando o status premium muda (ex.: liberar o chat). */
@@ -24,25 +25,38 @@ type Props = {
 };
 
 export function PremiumCrown({ onPremiumChange, onUnauthorized }: Props) {
+  const { isAuthenticated } = useAuth();
   const [premium, setPremium] = useState(false);
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [online, setOnline] = useState(true); // padrão: amarela
+
+  const crownColor = online ? colors.warning : colors.mutedForeground;
 
   // Descobre se o usuário já é premium ao montar.
   useEffect(() => {
+    if (!isAuthenticated) return;
     let alive = true;
 
-    getPremiumStatus().then((p) => {
+    const check = async () => {
+      const s = await getPremiumStatus();
       if (!alive) return;
-      setPremium(p);
-      onPremiumChange?.(p);
-    });
+      setOnline(s.online);
+      if (s.online) {
+        setPremium(s.premium);
+        onPremiumChange?.(s.premium);
+      }
+    };
+
+    check();
+    const t = setInterval(check, 30000); // reavalia a cada 30 s
     return () => {
       alive = false;
+      clearInterval(t);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const close = useCallback(() => {
     setOpen(false);
@@ -77,10 +91,12 @@ export function PremiumCrown({ onPremiumChange, onUnauthorized }: Props) {
     <>
       <Pressable
         onPress={() => setOpen(true)}
-        accessibilityLabel={premium ? "Premium ativo" : "Ativar versão premium"}
-        style={[styles.btn, premium && styles.btnActive]}
+        accessibilityLabel={
+          !online ? "Premium indisponível: sem conexão" : premium ? "Premium ativo" : "Ativar versão premium"
+        }
+        style={[styles.btn, online && styles.btnOnline]}
       >
-        <Crown size={18} color={premium ? colors.warning : colors.mutedForeground} />
+        <Crown size={18} color={crownColor} fill={premium ? crownColor : "none"} />
       </Pressable>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
@@ -152,7 +168,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   btnActive: { borderColor: colors.warning, backgroundColor: colors.warningSoft },
-
+  btnOnline: { borderColor: colors.warning, backgroundColor: colors.warningSoft },
   backdrop: {
     flex: 1,
     alignItems: "center",

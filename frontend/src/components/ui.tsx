@@ -29,9 +29,17 @@ export const shadow = {
 };
 
 /** Equivalente ao <main>/container: ocupa a tela inteira respeitando notch e barra inferior. */
+const WEB_ZOOM = 1.04;
+
 export function Shell({ children }: { children: ReactNode }) {
   return (
-    <SafeAreaView style={styles.shell} edges={["top", "bottom"]}>
+    <SafeAreaView
+      style={[
+        styles.shell,
+        Platform.OS === "web" ? ({ zoom: WEB_ZOOM } as any) : null,
+      ]}
+      edges={["top", "bottom"]}
+    >
       <View style={styles.column}>{children}</View>
     </SafeAreaView>
   );

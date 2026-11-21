@@ -7,6 +7,9 @@ export type RedeemResult =
   | { ok: true }
   | { ok: false; reason: "invalid" | "rate_limited" | "unauthorized" | "server" | "network"; message: string };
 
+/** Para mostrar/esconder a coroa conforme o usuário já é premium. */
+export type PremiumStatus = { online: boolean; premium: boolean };
+
 /** Resgata o código premium. Nunca lança: sempre devolve um resultado tratável pela UI. */
 export async function redeemPremiumCode(code: string): Promise<RedeemResult> {
 
@@ -35,14 +38,16 @@ export async function redeemPremiumCode(code: string): Promise<RedeemResult> {
   }
 }
 
-/** Para mostrar/esconder a coroa conforme o usuário já é premium. */
-export async function getPremiumStatus(): Promise<boolean> {
+
+
+export async function getPremiumStatus(): Promise<PremiumStatus> {
   try {
-    const res = await apiFetch(`${API_URL}/api/premium/status`, {method: "GET"});
-    if (!res.ok) return false;
+    const res = await apiFetch("/api/premium/status");
+    if (res.status >= 500) return { online: false, premium: false };
+    if (!res.ok) return { online: true, premium: false }; // 401 etc.: servidor respondeu
     const data = (await res.json()) as { premium: boolean };
-    return data.premium === true;
+    return { online: true, premium: data.premium === true };
   } catch {
-    return false;
+    return { online: false, premium: false }; // falha de rede, CORS ou timeout
   }
 }

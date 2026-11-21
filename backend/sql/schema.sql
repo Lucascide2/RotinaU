@@ -57,6 +57,26 @@ CREATE TABLE IF NOT EXISTS premium_redeem_attempts (
 CREATE INDEX IF NOT EXISTS premium_redeem_attempts_idx
   ON premium_redeem_attempts (user_id, created_at DESC);
 
+-- Códigos compartilhados (valem para qualquer usuário). Só o hash fica no banco.
+CREATE TABLE IF NOT EXISTS premium_shared_codes (
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  code_hash   text        NOT NULL UNIQUE,
+  max_uses    integer,                 -- NULL = sem limite
+  uses        integer     NOT NULL DEFAULT 0,
+  expires_at  timestamptz,             -- NULL = não expira
+  revoked_at  timestamptz,
+  note        text,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- Um resgate por usuário em cada código.
+CREATE TABLE IF NOT EXISTS premium_shared_redemptions (
+  code_id     uuid        NOT NULL REFERENCES premium_shared_codes(id) ON DELETE CASCADE,
+  user_id     uuid        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  redeemed_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (code_id, user_id)
+);
+
 -- Permissão de uso do chat (Gemini). Nega por padrão: o acesso é concedido a cada usuário.
 -- Funciona tanto em banco novo quanto em um que já tinha a tabela users.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS llm_enabled boolean NOT NULL DEFAULT false;

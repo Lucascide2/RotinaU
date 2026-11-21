@@ -21,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authenticated, setAuthenticated] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
 
+
   // Restaura a sessão ao abrir o app.
   useEffect(() => {
     (async () => {
@@ -38,6 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    console.log("[auth-context] authenticated mudou:", authenticated);
+  }, [authenticated]);
   
 
   const signOut = useCallback(async () => {

@@ -46,3 +46,4 @@ backend/.env
 backend/comandos.txt
 backend/nginx-rotinau.conf
 backend/codigos.txt
+backend/backup

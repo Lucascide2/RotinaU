@@ -340,9 +340,14 @@ import {
   
   
   export async function prepareWeeksLLM(state: State, now: Date, parent?: AbortSignal): Promise<State> {
+
+    console.log("Executou o prepareWeeksLLM")
     const current = mondayOf(now).toISOString();
     const nextWeek = shiftWeek(current, 1);
-    const weeks = { ...state.weeks, [state.weekStart]: withSessionGaps(state.sessions) };
+    const weeks = { ...state.weeks };
+    if (state.sessions.length > 0 || !weeks[state.weekStart]) {
+      weeks[state.weekStart] = withSessionGaps(state.sessions);
+    }
     const hasPlan = Object.values(weeks).some((s) => s.length > 0);
   
     const make = async (weekStart: string) =>
@@ -356,13 +361,25 @@ import {
         history: historyFor(weeks, weekStart),
       })).sessions;
   
+    console.log("[weeks[current]] era", weeks[current], "e seu valor booleano era", Boolean(weeks[current]))
     if (!weeks[current]) weeks[current] = hasPlan ? await make(current) : [];
     if (hasPlan && !weeks[nextWeek]) weeks[nextWeek] = await make(nextWeek);
   
-    return {
+    const result = {
       ...state, weekStart: current, sessions: weeks[current] ?? [], weeks,
       dismissed: current === state.weekStart ? state.dismissed : [],
     };
+    
+    console.log("[state:saida-llm]", {
+      step: result.step,
+      weekStart: result.weekStart,
+      sessions: result.sessions.length,
+      weeksCounts: Object.fromEntries(
+        Object.entries(result.weeks).map(([k, v]) => [k, v.length]),
+      ),
+    });
+    
+    return result;
   }
 
   /** generateWithLLM com timeout; em erro ou timeout cai no generate determinístico. */

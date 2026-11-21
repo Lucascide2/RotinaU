@@ -176,6 +176,14 @@ const globalDailyLimiter = rateLimit({
 
 const app = express();
 
+app.use(
+  cors({
+    origin: ALLOWED_ORIGIN,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+
 // Atrás de proxy (Render, Railway, Nginx...) defina TRUST_PROXY=1 no .env,
 // senão o servidor enxerga o IP do proxy e o bloqueio de login por IP fica errado.
 if (TRUST_PROXY > 0) app.set("trust proxy", TRUST_PROXY);
@@ -187,13 +195,7 @@ app.use((req, _res, next) => {
 
 // CORS: o navegador só aceita respostas para a origem permitida (e responde ao preflight).
 // "Authorization" precisa estar liberado, senão o navegador bloqueia o token no preflight.
-app.use(
-  cors({
-    origin: ALLOWED_ORIGIN,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }),
-);
+
 app.use(express.json({ limit: "100kb" }));
 
 // Cadastro, login, refresh e logout
