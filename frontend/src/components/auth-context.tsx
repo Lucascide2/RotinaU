@@ -11,6 +11,9 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  premium: boolean;
+  online: boolean;
+  setPremiumInfo: (p: { premium?: boolean; online?: boolean }) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -20,7 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [premium, setPremium] = useState(false);
+  const [online, setOnline] = useState(true);
 
+  const setPremiumInfo = useCallback((p: { premium?: boolean; online?: boolean }) => {
+    if (p.premium !== undefined) setPremium(p.premium);
+    if (p.online !== undefined) setOnline(p.online);
+  }, []);
 
   // Restaura a sessão ao abrir o app.
   useEffect(() => {
@@ -50,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     AsyncStorage.removeItem(USER_KEY).catch(() => {});
     setUser(null);
     setAuthenticated(false);
+    setPremium(false);
+    setOnline(true);
   }, []);
 
   // Qualquer 401 em apiFetch derruba a sessão.
@@ -57,6 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(() => {
       setUser(null);
       setAuthenticated(false);
+      setPremium(false);
+      setOnline(true);
     });
     return () => setUnauthorizedHandler(null);
   }, []);
@@ -76,8 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, isAuthenticated: authenticated, user, signIn, signUp, signOut }),
-    [ready, authenticated, user, signIn, signUp, signOut],
+    () => ({ ready, isAuthenticated: authenticated, user, signIn, signUp, signOut, premium, online, setPremiumInfo }),
+    [ready, authenticated, user, signIn, signUp, signOut, premium, online, setPremiumInfo],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

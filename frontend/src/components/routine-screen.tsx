@@ -46,7 +46,10 @@ export function RoutineScreen({ state, update, now }: Props) {
   const [selOff, setSelOff] = useState(0); // dia marcado como selecionado
   const [busy, setBusy] = useState(false);
 
-  const subj = (id: string) => state.subjects.find((s) => s.id === id)?.name ?? "Disciplina removida";
+  const subj = (id: string) =>
+    state.subjects.find((s) => s.id === id)?.name ??
+    state.subjectNames?.[id] ??
+    "Disciplina removida";
   const focusDate = dayOffsetDate(state.weekStart, now, focusOff);
   const focusDay = weekIndexOf(focusDate);
   const viewState = stateForDate(state, focusDate);

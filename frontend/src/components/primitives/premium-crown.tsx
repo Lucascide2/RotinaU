@@ -25,13 +25,12 @@ type Props = {
 };
 
 export function PremiumCrown({ onPremiumChange, onUnauthorized }: Props) {
-  const { isAuthenticated } = useAuth();
-  const [premium, setPremium] = useState(false);
+  const { isAuthenticated, premium, online, setPremiumInfo } = useAuth();
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [online, setOnline] = useState(true); // padrão: amarela
+
 
   const crownColor = online ? colors.warning : colors.mutedForeground;
 
@@ -39,21 +38,20 @@ export function PremiumCrown({ onPremiumChange, onUnauthorized }: Props) {
   useEffect(() => {
     if (!isAuthenticated) return;
     let alive = true;
-
+  
     const check = async () => {
       const s = await getPremiumStatus();
-      console.log("[premium-crown s (getPremiumStatus)] é igual a", s.online, s.premium)
       if (!alive) return;
-      setOnline(s.online);
-
       if (s.online) {
-        setPremium(s.premium);
+        setPremiumInfo({ online: true, premium: s.premium });
         onPremiumChange?.(s.premium);
+      } else {
+        setPremiumInfo({ online: false }); // não mexe em premium numa queda de rede
       }
     };
-
+  
     check();
-    const t = setInterval(check, 30000); // reavalia a cada 30 s
+    const t = setInterval(check, 30000);
     return () => {
       alive = false;
       clearInterval(t);
@@ -79,7 +77,7 @@ export function PremiumCrown({ onPremiumChange, onUnauthorized }: Props) {
     setLoading(false);
 
     if (result.ok) {
-      setPremium(true);
+      setPremiumInfo({ premium: true, online: true });
       onPremiumChange?.(true);
       close();
       return;

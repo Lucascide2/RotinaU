@@ -27,6 +27,7 @@ export type State = {
   dismissed: string[];
   weeks?: Record<string, Session[]>;
   upShownAt?: string; // ISO da última exibição da sugestão de aumentos
+  subjectNames: Record<string, string>; // id -> nome, inclui disciplinas já excluídas
 };
 
 export const DAY_NAMES = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
@@ -87,7 +88,11 @@ export function prepareWeeks(state: State, now: Date): State {
   const next = new Date(now); next.setDate(next.getDate() + 7);
   const nextWeek = mondayOf(next).toISOString();
   if (hasPlan && !weeks[nextWeek]) weeks[nextWeek] = generate(state.days, state.subjects, state.duration);
-  return { ...state, weekStart: current, sessions: weeks[current] ?? [], weeks,
+
+  const subjectNames = { ...(state.subjectNames ?? {}) };
+  for (const s of state.subjects) subjectNames[s.id] = s.name;
+
+  return { ...state, subjectNames, weekStart: current, sessions: weeks[current] ?? [], weeks,
     dismissed: current === state.weekStart ? state.dismissed : [] };
 }
 
@@ -116,6 +121,7 @@ export function defaultState(): State {
     sessions: [],
     weekStart: mondayOf(new Date()).toISOString(),
     dismissed: [],
+    subjectNames: {}
   };
 }
 
