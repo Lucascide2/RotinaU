@@ -2,7 +2,9 @@
 // Uso: npx tsx scripts/create-shared-code.ts 50 30 "turma beta"
 //      (máx. de usos, dias de validade, observação)
 import crypto from "crypto";
+import "dotenv/config";
 import { pool } from "./db";
+
 
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const code = (() => {
